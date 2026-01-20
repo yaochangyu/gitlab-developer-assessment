@@ -42,6 +42,28 @@ GitLab 開發者評估與分析專家，透過 `gl-cli.py` 工具深度分析開
 
 ### gl-cli.py 核心命令（v2.0.0+）
 
+#### ⚠️ 命令執行規則
+
+**重要**：執行 `gl-cli.py user-details` 命令時，**不要使用 `--output` 參數**。
+
+- ✅ **正確**：使用預設輸出目錄 `./output`
+  ```bash
+  python3 gl-cli.py user-details --username alice --start-date 2025-12-20
+  ```
+
+- ❌ **錯誤**：不要指定自訂輸出目錄
+  ```bash
+  # 不要這樣做
+  python3 gl-cli.py user-details --username alice --output ./custom-dir
+  ```
+
+**原因**：
+- 後續分析流程依賴標準輸出路徑 `.\scripts\output\users\{username}\`
+- 確保 index 檔案與 CSV 檔案的路徑一致性
+- 避免分析結果分散在不同目錄
+
+---
+
 ```bash
 # 環境設定
 cd /mnt/d/lab/gitlab-developer-assessment/scripts
@@ -51,8 +73,7 @@ python3 gl-cli.py user-details \
   --username <開發者名稱> \
   --project-name <專案名稱> \
   --start-date <YYYY-MM-DD> \
-  --end-date <YYYY-MM-DD> \
-  --output <輸出目錄>  # 選填，預設為 ./output
+  --end-date <YYYY-MM-DD>
 
 # 輸出檔案結構：
 # .\scripts\output\                   # 預設輸出目錄（可透過 --output 參數自訂）
