@@ -6,6 +6,11 @@
 
 import csv
 import os
+import urllib3
+
+# 抑制 SSL 不安全連線警告（self-signed certificates）
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
 from gitlab_client import GitLabClient
 from config import GITLAB_URL, GITLAB_TOKEN, OUTPUT_DIR
 
@@ -116,11 +121,24 @@ def export_all_users():
                 }
                 
                 writer.writerow(row)
-                print(f"  [{idx}/{len(users)}] {user.username} ({user.name})")
+                
+                # 顯示進度條
+                percentage = (idx / len(users) * 100) if len(users) > 0 else 0
+                bar_length = 30
+                filled_length = int(bar_length * idx // len(users))
+                bar = '█' * filled_length + '░' * (bar_length - filled_length)
+                
+                progress_msg = f"  [{bar}] {idx}/{len(users)} ({percentage:.1f}%) - {user.username} ({user.name})"
+                terminal_width = 120
+                padded_msg = progress_msg.ljust(terminal_width)
+                print(f"\r{padded_msg}", end='', flush=True)
                 
             except Exception as e:
-                print(f"  [錯誤] 無法處理使用者 {user.id}: {e}")
+                print(f"\r  [錯誤] 無法處理使用者 {user.id}: {e}".ljust(120))
                 continue
+        
+        # 換行，完成進度條
+        print()
     
     print(f"\n✅ 完成！匯出 {len(users)} 個使用者到 {output_file}")
 
