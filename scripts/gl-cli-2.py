@@ -429,6 +429,7 @@ class UserDetailsAnalyzer:
             
             # 儲存 CSV
             # 使用 export_dataframe_to_csv 統一匯出方式
+            df = pd.DataFrame(data_list)
             export_dataframe_to_csv(df, self.output_dir, base_name)
 
 
