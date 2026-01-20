@@ -218,11 +218,12 @@ class ProjectPermissionFetcher(IDataFetcher):
 
 
 class UserDataFetcher(IDataFetcher):
-    """使用者資料獲取器"""
+    """使用者資料獲取器（支援快取）"""
     
     def __init__(self, client: GitLabClient, progress_reporter: Optional[IProgressReporter] = None):
         self.client = client
         self.progress = progress_reporter or SilentProgressReporter()
+        self._projects_cache = {}  # 快取字典：key=(group_id, project_name), value=[projects]
     
     def fetch(self, username: Optional[str] = None,
               project_name: Optional[str] = None,
@@ -244,9 +245,20 @@ class UserDataFetcher(IDataFetcher):
         Returns:
             使用者資料字典
         """
-        self.progress.report_start("正在獲取專案列表...")
-        projects = self.client.get_projects(group_id=group_id, search=project_name)
-        self.progress.report_complete(f"找到 {len(projects)} 個專案")
+        # 建立快取鍵值
+        cache_key = (group_id, project_name)
+        
+        # 檢查快取
+        if cache_key in self._projects_cache:
+            projects = self._projects_cache[cache_key]
+            self.progress.report_complete(
+                f"✓ 使用快取專案列表（{len(projects)} 個專案）"
+            )
+        else:
+            self.progress.report_start("正在獲取專案列表...")
+            projects = self.client.get_projects(group_id=group_id, search=project_name)
+            self._projects_cache[cache_key] = projects
+            self.progress.report_complete(f"找到 {len(projects)} 個專案（已快取）")
         
         # 檢查是否有找到專案
         if project_name and not projects:
@@ -621,6 +633,24 @@ class UserDataFetcher(IDataFetcher):
                 self.progress.report_warning(f"Failed to get project details/contributors for {project.name}: {e}")
         
         return user_data
+    
+    def clear_cache(self):
+        """清除所有專案快取"""
+        self._projects_cache.clear()
+    
+    def get_cache_stats(self) -> Dict[str, int]:
+        """
+        取得快取統計資訊
+        
+        Returns:
+            包含快取統計的字典
+        """
+        total_projects = sum(len(projects) for projects in self._projects_cache.values())
+        return {
+            'cached_queries': len(self._projects_cache),
+            'total_cached_projects': total_projects
+        }
+
 
 
 class UserProjectsFetcher(IDataFetcher):
@@ -1705,6 +1735,67 @@ class UserStatsService(BaseService):
             f.write(content)
         
         print(f"✓ Index file generated: {index_path}")
+    
+    def execute_batch(self, usernames: List[str], 
+                     project_name: Optional[str] = None,
+                     start_date: Optional[str] = None,
+                     end_date: Optional[str] = None,
+                     group_id: Optional[int] = None) -> None:
+        """
+        批次執行使用者統計（共用專案清單）
+        
+        Args:
+            usernames: 使用者名稱列表
+            project_name: 專案名稱 (可選，篩選特定專案)
+            start_date: 開始日期
+            end_date: 結束日期
+            group_id: 群組 ID (可選)
+        """
+        start_time = time.time()
+        
+        print("=" * 70)
+        print(f"GitLab 使用者資訊批次查詢（{len(usernames)} 位使用者）")
+        print("=" * 70)
+        
+        # 預先載入專案清單（只取一次）
+        cache_key = (group_id, project_name)
+        if cache_key not in self.fetcher._projects_cache:
+            self.fetcher.progress.report_start("正在預載專案列表...")
+            projects = self.fetcher.client.get_projects(group_id=group_id, search=project_name)
+            self.fetcher._projects_cache[cache_key] = projects
+            self.fetcher.progress.report_complete(f"找到 {len(projects)} 個專案（已快取供批次使用）")
+        else:
+            projects = self.fetcher._projects_cache[cache_key]
+            print(f"\n✓ 使用現有快取（{len(projects)} 個專案）")
+        
+        # 分析每個使用者（使用快取的專案清單）
+        for idx, username in enumerate(usernames, 1):
+            print(f"\n{'='*70}")
+            print(f"[{idx}/{len(usernames)}] 分析使用者: {username}")
+            print(f"{'='*70}")
+            
+            self.execute(
+                username=username,
+                project_name=project_name,
+                start_date=start_date,
+                end_date=end_date,
+                group_id=group_id
+            )
+        
+        elapsed_time = time.time() - start_time
+        print(f"\n{'='*70}")
+        print(f"✓ 批次執行完成！")
+        print(f"✓ 處理使用者數量: {len(usernames)}")
+        print(f"✓ 總執行時間: {elapsed_time:.2f} 秒")
+        print(f"✓ 平均每位使用者: {elapsed_time/len(usernames):.2f} 秒")
+        
+        # 顯示快取統計
+        cache_stats = self.fetcher.get_cache_stats()
+        print(f"\n快取統計：")
+        print(f"  • 快取查詢數: {cache_stats['cached_queries']}")
+        print(f"  • 快取專案數: {cache_stats['total_cached_projects']}")
+        print(f"{'='*70}")
+
 
 
 class UserProjectsService(BaseService):
@@ -2178,7 +2269,7 @@ class GitLabCLI:
             )
     
     def _cmd_user_stats(self, args):
-        """執行使用者統計命令（支援多筆使用者和專案）"""
+        """執行使用者統計命令（支援多筆使用者和專案，自動使用批次模式優化）"""
         service = self.create_user_stats_service()
         
         # 處理多筆使用者名稱
@@ -2192,31 +2283,53 @@ class GitLabCLI:
         if not project_names:
             project_names = [None]
         
-        # 組合所有查詢（笛卡爾積）
-        total_queries = len(usernames) * len(project_names)
-        current = 0
+        # 判斷是否可以使用批次模式（多個使用者 + 單一專案範圍）
+        # 批次模式的條件：
+        # 1. 多於 1 個使用者
+        # 2. 只有 1 個專案範圍（或全部專案）
+        # 3. 所有使用者都不是 None
+        can_use_batch = (
+            len(usernames) > 1 and 
+            len(project_names) == 1 and 
+            all(u is not None for u in usernames)
+        )
         
-        for username in usernames:
-            for project_name in project_names:
-                current += 1
-                if total_queries > 1:
-                    print(f"\n{'='*70}")
-                    print(f"查詢 {current}/{total_queries}: ", end="")
-                    if username:
-                        print(f"使用者={username}", end="")
-                    if project_name:
-                        print(f" 專案={project_name}", end="")
-                    if not username and not project_name:
-                        print("所有使用者和專案", end="")
-                    print(f"\n{'='*70}")
-                
-                service.execute(
-                    username=username,
-                    project_name=project_name,
-                    start_date=args.start_date or config.START_DATE,
-                    end_date=args.end_date or config.END_DATE,
-                    group_id=args.group_id or config.TARGET_GROUP_ID
-                )
+        if can_use_batch:
+            # 使用批次模式（預先載入專案清單，共用快取）
+            service.execute_batch(
+                usernames=usernames,
+                project_name=project_names[0],
+                start_date=args.start_date or config.START_DATE,
+                end_date=args.end_date or config.END_DATE,
+                group_id=args.group_id or config.TARGET_GROUP_ID
+            )
+        else:
+            # 使用原有邏輯（笛卡爾積模式）
+            total_queries = len(usernames) * len(project_names)
+            current = 0
+            
+            for username in usernames:
+                for project_name in project_names:
+                    current += 1
+                    if total_queries > 1:
+                        print(f"\n{'='*70}")
+                        print(f"查詢 {current}/{total_queries}: ", end="")
+                        if username:
+                            print(f"使用者={username}", end="")
+                        if project_name:
+                            print(f" 專案={project_name}", end="")
+                        if not username and not project_name:
+                            print("所有使用者和專案", end="")
+                        print(f"\n{'='*70}")
+                    
+                    service.execute(
+                        username=username,
+                        project_name=project_name,
+                        start_date=args.start_date or config.START_DATE,
+                        end_date=args.end_date or config.END_DATE,
+                        group_id=args.group_id or config.TARGET_GROUP_ID
+                    )
+
     
     def _cmd_user_projects(self, args):
         """執行使用者專案命令（支援多筆使用者和群組）"""
