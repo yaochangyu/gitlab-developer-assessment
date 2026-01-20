@@ -26,6 +26,7 @@ from gitlab_client import GitLabClient
 import config
 from progress_reporter import IProgressReporter, ConsoleProgressReporter, SilentProgressReporter
 from common_utils import disable_ssl_warnings, ensure_output_dir, export_dataframe_to_csv
+from export_utils import AccessLevelMapper, create_default_client
 
 # 抑制 SSL 警告
 disable_ssl_warnings()
@@ -33,30 +34,7 @@ disable_ssl_warnings()
 
 # ==================== 工具類別 ====================
 
-class AccessLevelUtil:
-    """GitLab 授權等級工具類別"""
-    
-    # 授權等級對照表
-    LEVELS = {
-        10: 'Guest',
-        20: 'Reporter',
-        30: 'Developer',
-        40: 'Maintainer',
-        50: 'Owner'
-    }
-    
-    @staticmethod
-    def get_level_name(level: int) -> str:
-        """
-        轉換存取等級為名稱
-        
-        Args:
-            level: 存取等級代碼 (10/20/30/40/50)
-        
-        Returns:
-            存取等級名稱
-        """
-        return AccessLevelUtil.LEVELS.get(level, 'Unknown')
+# AccessLevelUtil 已移至 export_utils.AccessLevelMapper
 
 
 # ==================== 抽象介面 (介面隔離原則) ====================
@@ -143,7 +121,7 @@ class ProjectDataFetcher(IDataFetcher):
                             'member_username': member.username,
                             'member_email': getattr(member, 'email', ''),
                             'access_level': member.access_level,
-                            'access_level_name': AccessLevelUtil.get_level_name(member.access_level)
+                            'access_level_name': AccessLevelMapper.get_level_name(member.access_level)
                         })
                     
                     # 獲取群組成員（如果有共享給群組）
@@ -159,7 +137,7 @@ class ProjectDataFetcher(IDataFetcher):
                                 'member_username': '',
                                 'member_email': '',
                                 'access_level': group['group_access_level'],
-                                'access_level_name': AccessLevelUtil.get_level_name(group['group_access_level'])
+                                'access_level_name': AccessLevelMapper.get_level_name(group['group_access_level'])
                             })
                     except:
                         pass
@@ -215,7 +193,7 @@ class ProjectPermissionFetcher(IDataFetcher):
                         'member_username': member.username,
                         'member_email': getattr(member, 'email', ''),
                         'access_level': member.access_level,
-                        'access_level_name': AccessLevelUtil.get_level_name(member.access_level)
+                        'access_level_name': AccessLevelMapper.get_level_name(member.access_level)
                     })
                 
                 # 獲取群組成員（如果有共享給群組）
@@ -231,7 +209,7 @@ class ProjectPermissionFetcher(IDataFetcher):
                             'member_username': '',
                             'member_email': '',
                             'access_level': group['group_access_level'],
-                            'access_level_name': AccessLevelUtil.get_level_name(group['group_access_level'])
+                            'access_level_name': AccessLevelMapper.get_level_name(group['group_access_level'])
                         })
                 except:
                     pass
@@ -600,7 +578,7 @@ class UserDataFetcher(IDataFetcher):
                         'member_username': member.username,
                         'member_email': getattr(member, 'email', ''),
                         'access_level': member.access_level,
-                        'access_level_name': AccessLevelUtil.get_level_name(member.access_level),
+                        'access_level_name': AccessLevelMapper.get_level_name(member.access_level),
                         'expires_at': getattr(member, 'expires_at', None)
                     })
                 
@@ -731,7 +709,7 @@ class UserProjectsFetcher(IDataFetcher):
                         'project_created_at': project.created_at,
                         'project_last_activity': project.last_activity_at,
                         'access_level': member.access_level,
-                        'access_level_name': AccessLevelUtil.get_level_name(member.access_level),
+                        'access_level_name': AccessLevelMapper.get_level_name(member.access_level),
                         'expires_at': getattr(member, 'expires_at', None)
                     })
             except Exception as e:
@@ -809,7 +787,7 @@ class GroupDataFetcher(IDataFetcher):
                         'member_username': member.username,
                         'member_email': getattr(member, 'email', ''),
                         'access_level': member.access_level,
-                        'access_level_name': AccessLevelUtil.get_level_name(member.access_level),
+                        'access_level_name': AccessLevelMapper.get_level_name(member.access_level),
                         'expires_at': getattr(member, 'expires_at', None)
                     })
                 
@@ -870,7 +848,7 @@ class GroupDataFetcher(IDataFetcher):
                                     'member_username': member.username,
                                     'member_email': getattr(member, 'email', ''),
                                     'access_level': member.access_level,
-                                    'access_level_name': AccessLevelUtil.get_level_name(member.access_level),
+                                    'access_level_name': AccessLevelMapper.get_level_name(member.access_level),
                                     'expires_at': getattr(member, 'expires_at', None)
                                 })
                             
@@ -888,7 +866,7 @@ class GroupDataFetcher(IDataFetcher):
                                     'member_username': '',
                                     'member_email': '',
                                     'access_level': shared_group.get('group_access_level'),
-                                    'access_level_name': AccessLevelUtil.get_level_name(shared_group.get('group_access_level')),
+                                    'access_level_name': AccessLevelMapper.get_level_name(shared_group.get('group_access_level')),
                                     'expires_at': shared_group.get('expires_at', None)
                                 })
                         except Exception as e:
@@ -1255,7 +1233,8 @@ class DataExporter(IDataExporter):
         
         # 匯出 CSV
         csv_path = self.output_dir / f"{filename}.csv"
-        df.to_csv(csv_path, index=False, encoding='utf-8-sig')
+        # 使用 export_dataframe_to_csv 統一匯出方式
+        export_dataframe_to_csv(df, output_dir, base_filename)
         print(f"✓ CSV exported: {csv_path}")
 
 
@@ -1841,11 +1820,7 @@ class GitLabCLI:
     """GitLab CLI 主程式"""
     
     def __init__(self, output_dir: Optional[str] = None):
-        self.client = GitLabClient(
-            gitlab_url=config.GITLAB_URL,
-            private_token=config.GITLAB_TOKEN,
-            ssl_verify=False
-        )
+        self.client = create_default_client()
         self.output_dir = output_dir or config.OUTPUT_DIR
         self.exporter = DataExporter(output_dir=self.output_dir)
         self.progress = ConsoleProgressReporter()

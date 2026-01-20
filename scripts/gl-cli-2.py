@@ -19,6 +19,7 @@ import pandas as pd
 from gitlab_client import GitLabClient
 import config
 from common_utils import disable_ssl_warnings, ensure_output_dir, export_dataframe_to_csv
+from export_utils import AccessLevelMapper, create_default_client
 
 # 抑制 SSL 警告
 disable_ssl_warnings()
@@ -365,23 +366,13 @@ class UserDetailsAnalyzer:
                         'username': member.username,
                         'name': getattr(member, 'name', ''),
                         'access_level': member.access_level,
-                        'access_level_name': self._get_access_level_name(member.access_level)
+                        'access_level_name': AccessLevelMapper.get_level_name(member.access_level)
                     })
             return result
         except:
             return []
     
-    def _get_access_level_name(self, level: int) -> str:
-        """轉換授權等級"""
-        levels = {
-            10: 'Guest',
-            20: 'Reporter',
-            30: 'Developer',
-            40: 'Maintainer',
-            50: 'Owner'
-        }
-        return levels.get(level, 'Unknown')
-    
+
     def _get_user_profile(self, user_id: int) -> List[Dict]:
         """取得用戶個人資料"""
         try:
@@ -437,10 +428,8 @@ class UserDetailsAnalyzer:
                 base_name = f"{username}-user-{data_type}"
             
             # 儲存 CSV
-            df = pd.DataFrame(data_list)
-            csv_path = self.output_dir / f"{base_name}.csv"
-            df.to_csv(csv_path, index=False, encoding='utf-8-sig')
-            print(f"  ✅ 已儲存: {csv_path}")
+            # 使用 export_dataframe_to_csv 統一匯出方式
+            export_dataframe_to_csv(df, self.output_dir, base_name)
 
 
 
@@ -513,12 +502,8 @@ def main():
     
     args = parser.parse_args()
     
-    # 初始化 GitLab 客戶端
-    client = GitLabClient(
-        gitlab_url=config.GITLAB_URL,
-        private_token=config.GITLAB_TOKEN,
-        ssl_verify=False
-    )
+    # 建立 GitLab 客戶端
+    client = create_default_client()
     
     # 處理 user-details 子命令
     if args.command == 'user-details':

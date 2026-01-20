@@ -29,6 +29,7 @@ from common_utils import (
     get_timestamp,
     export_dataframe_to_csv
 )
+from export_utils import AccessLevelMapper, create_default_client, create_export_argument_parser
 
 # 抑制 SSL 警告
 disable_ssl_warnings()
@@ -38,11 +39,7 @@ class GroupExporter:
     """群組資料匯出器"""
     
     def __init__(self, output_dir: str = "./output"):
-        self.client = GitLabClient(
-            gitlab_url=config.GITLAB_URL,
-            private_token=config.GITLAB_TOKEN,
-            ssl_verify=False
-        )
+        self.client = create_default_client()
         self.output_dir = ensure_output_dir(output_dir)
         self.progress = ConsoleProgressReporter()
     
@@ -135,7 +132,7 @@ class GroupExporter:
                         'email': getattr(member, 'email', ''),
                         'state': getattr(member, 'state', None),
                         'access_level': getattr(member, 'access_level', None),
-                        'access_level_name': self._get_access_level_name(getattr(member, 'access_level', None)),
+                        'access_level_name': AccessLevelMapper.get_level_name(getattr(member, 'access_level', None)),
                         'expires_at': getattr(member, 'expires_at', None),
                     }
                     all_permissions.append(permission_info)
@@ -149,17 +146,7 @@ class GroupExporter:
             'permissions': all_permissions
         }
     
-    def _get_access_level_name(self, level: int) -> str:
-        """轉換權限等級代碼為名稱"""
-        levels = {
-            10: 'Guest',
-            20: 'Reporter',
-            30: 'Developer',
-            40: 'Maintainer',
-            50: 'Owner'
-        }
-        return levels.get(level, 'Unknown')
-    
+
     def export_to_csv(self, data: dict):
         """匯出資料到 CSV"""
         timestamp = get_timestamp()
@@ -237,22 +224,14 @@ class GroupExporter:
 
 def main():
     """主程式"""
-    parser = argparse.ArgumentParser(
+    parser = create_export_argument_parser(
         description='匯出所有 GitLab 群組資訊',
-        formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 使用範例:
     python export_all_groups.py
     python export_all_groups.py --output ./reports
     python export_all_groups.py --output /path/to/custom/dir
         """
-    )
-    
-    parser.add_argument(
-        '--output',
-        type=str,
-        default=os.path.join(os.getcwd(), 'output'),
-        help='輸出目錄路徑 (預設: ./output)'
     )
     
     args = parser.parse_args()
