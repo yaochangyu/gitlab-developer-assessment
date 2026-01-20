@@ -29,29 +29,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from gitlab_client import GitLabClient
 import config
-
-
-class ProgressReporter:
-    """進度報告器"""
-    
-    def report_progress(self, current: int, total: int, message: str = "") -> None:
-        """報告進度"""
-        percentage = (current / total * 100) if total > 0 else 0
-        bar_length = 30
-        filled_length = int(bar_length * current // total) if total > 0 else 0
-        bar = '█' * filled_length + '░' * (bar_length - filled_length)
-        
-        progress_msg = f"  [{bar}] {current}/{total} ({percentage:.1f}%)"
-        if message:
-            progress_msg += f" - {message}"
-        
-        # 清空整行後再輸出，避免文字殘留
-        terminal_width = 120
-        padded_msg = progress_msg.ljust(terminal_width)
-        print(f"\r{padded_msg}", end='', flush=True)
-        
-        if current >= total:
-            print()  # 完成時換行
+from progress_reporter import ConsoleProgressReporter
 
 
 class GroupExporter:
@@ -65,7 +43,7 @@ class GroupExporter:
         )
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
-        self.progress = ProgressReporter()
+        self.progress = ConsoleProgressReporter()
     
     def fetch_all_groups(self):
         """獲取所有群組資料"""

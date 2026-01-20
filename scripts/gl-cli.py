@@ -28,6 +28,7 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 from gitlab_client import GitLabClient
 import config
+from progress_reporter import IProgressReporter, ConsoleProgressReporter, SilentProgressReporter
 
 
 # ==================== 工具類別 ====================
@@ -60,29 +61,7 @@ class AccessLevelUtil:
 
 # ==================== 抽象介面 (介面隔離原則) ====================
 
-class IProgressReporter(ABC):
-    """進度報告介面"""
-    
-    @abstractmethod
-    def report_start(self, message: str) -> None:
-        """報告開始訊息"""
-        pass
-    
-    @abstractmethod
-    def report_progress(self, current: int, total: int, message: str = "") -> None:
-        """報告進度"""
-        pass
-    
-    @abstractmethod
-    def report_complete(self, message: str) -> None:
-        """報告完成訊息"""
-        pass
-    
-    @abstractmethod
-    def report_warning(self, message: str) -> None:
-        """報告警告訊息"""
-        pass
-
+# IProgressReporter 已從 progress_reporter 模組導入
 
 class IDataFetcher(ABC):
     """資料獲取介面"""
@@ -108,59 +87,6 @@ class IDataExporter(ABC):
     @abstractmethod
     def export(self, df: pd.DataFrame, filename: str) -> None:
         """匯出資料"""
-        pass
-
-
-# ==================== 進度報告類別 (單一職責原則) ====================
-
-class ConsoleProgressReporter(IProgressReporter):
-    """終端機進度報告器"""
-    
-    def report_start(self, message: str) -> None:
-        """報告開始訊息"""
-        print(f"\n🔄 {message}")
-    
-    def report_progress(self, current: int, total: int, message: str = "") -> None:
-        """報告進度"""
-        percentage = (current / total * 100) if total > 0 else 0
-        bar_length = 30
-        filled_length = int(bar_length * current // total) if total > 0 else 0
-        bar = '█' * filled_length + '░' * (bar_length - filled_length)
-        
-        progress_msg = f"  [{bar}] {current}/{total} ({percentage:.1f}%)"
-        if message:
-            progress_msg += f" - {message}"
-        
-        # 清空整行後再輸出，避免文字殘留
-        terminal_width = 120  # 假設終端寬度，可根據需要調整
-        padded_msg = progress_msg.ljust(terminal_width)
-        print(f"\r{padded_msg}", end='', flush=True)
-        
-        if current >= total:
-            print()  # 完成時換行
-    
-    def report_complete(self, message: str) -> None:
-        """報告完成訊息"""
-        print(f"✓ {message}")
-    
-    def report_warning(self, message: str) -> None:
-        """報告警告訊息"""
-        print(f"⚠️  {message}")
-
-
-class SilentProgressReporter(IProgressReporter):
-    """靜默進度報告器（不輸出任何訊息）"""
-    
-    def report_start(self, message: str) -> None:
-        pass
-    
-    def report_progress(self, current: int, total: int, message: str = "") -> None:
-        pass
-    
-    def report_complete(self, message: str) -> None:
-        pass
-    
-    def report_warning(self, message: str) -> None:
         pass
 
 

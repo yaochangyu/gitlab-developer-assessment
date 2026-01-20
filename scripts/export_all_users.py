@@ -13,6 +13,7 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 from gitlab_client import GitLabClient
 from config import GITLAB_URL, GITLAB_TOKEN, OUTPUT_DIR
+from progress_reporter import print_progress
 
 
 def export_all_users():
@@ -123,15 +124,7 @@ def export_all_users():
                 writer.writerow(row)
                 
                 # 顯示進度條
-                percentage = (idx / len(users) * 100) if len(users) > 0 else 0
-                bar_length = 30
-                filled_length = int(bar_length * idx // len(users))
-                bar = '█' * filled_length + '░' * (bar_length - filled_length)
-                
-                progress_msg = f"  [{bar}] {idx}/{len(users)} ({percentage:.1f}%) - {user.username} ({user.name})"
-                terminal_width = 120
-                padded_msg = progress_msg.ljust(terminal_width)
-                print(f"\r{padded_msg}", end='', flush=True)
+                print_progress(idx, len(users), f"{user.username} ({user.name})")
                 
             except Exception as e:
                 print(f"\r  [錯誤] 無法處理使用者 {user.id}: {e}".ljust(120))

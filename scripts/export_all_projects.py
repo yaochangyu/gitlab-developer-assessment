@@ -13,6 +13,7 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 from gitlab_client import GitLabClient
 from config import GITLAB_URL, GITLAB_TOKEN, OUTPUT_DIR
+from progress_reporter import print_progress
 
 
 def export_all_projects():
@@ -100,15 +101,7 @@ def export_all_projects():
                 writer.writerow(row)
                 
                 # 顯示進度條
-                percentage = (idx / len(projects) * 100) if len(projects) > 0 else 0
-                bar_length = 30
-                filled_length = int(bar_length * idx // len(projects))
-                bar = '█' * filled_length + '░' * (bar_length - filled_length)
-                
-                progress_msg = f"  [{bar}] {idx}/{len(projects)} ({percentage:.1f}%) - {full_project.path_with_namespace}"
-                terminal_width = 120
-                padded_msg = progress_msg.ljust(terminal_width)
-                print(f"\r{padded_msg}", end='', flush=True)
+                print_progress(idx, len(projects), full_project.path_with_namespace)
                 
             except Exception as e:
                 print(f"\r  [錯誤] 無法取得專案 {project.id}: {e}".ljust(120))
