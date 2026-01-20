@@ -42,76 +42,120 @@ GitLab 開發者評估與分析專家，透過 `gl-cli.py` 工具深度分析開
 
 ```bash
 # 環境設定
-cd /mnt/d/lab/sample.dotblog/Gitlab/Lab.Personal/scripts
+cd /mnt/d/lab/gitlab-developer-assessment/scripts
 
 # ⭐ 主要命令：取得開發者詳細資訊（推薦使用）
 python3 gl-cli.py user-details \
   --username <開發者名稱> \
   --project-name <專案名稱> \
   --start-date <YYYY-MM-DD> \
-  --end-date <YYYY-MM-DD>
+  --end-date <YYYY-MM-DD> \
+  --output <輸出目錄>  # 選填，預設為 ./output
 
-# 輸出檔案（以開發者為主，自動產生在 output/<username>/ 目錄）：
-# - output/<username>/user_profile.csv         (使用者基本資料 30+ 欄位)
-# - output/<username>/user_events.csv          (活動事件追蹤)
-# - output/<username>/commits.csv              (Commit 詳細記錄)
-# - output/<username>/code_changes.csv         (程式碼異動詳情)
-# - output/<username>/merge_requests.csv       (MR 記錄)
-# - output/<username>/code_reviews.csv         (Code Review 評論)
-# - output/<username>/permissions.csv          (專案授權資訊)
-# - output/<username>/statistics.csv           (統計摘要 17 個指標)
-# - output/<username>/index.md                 (索引檔案)
+# 輸出檔案結構：
+# output/                             # 預設輸出目錄（可透過 --output 參數自訂）
+# ├── users/                          # 開發者資料目錄
+# │   └── <username>/                 # 每位開發者獨立目錄
+# │       ├── <username>-index.md     # 索引檔案（資料摘要與檔案清單）
+# │       ├── user_profile.csv        # 使用者基本資料 (30+ 欄位)
+# │       ├── user_events.csv         # 活動事件追蹤
+# │       ├── commits.csv             # Commit 詳細記錄
+# │       ├── code_changes.csv        # 程式碼異動詳情（file-level diffs）
+# │       ├── merge_requests.csv      # MR 記錄
+# │       ├── code_reviews.csv        # Code Review 評論
+# │       ├── contributors.csv        # 專案貢獻者統計
+# │       ├── permissions.csv         # 專案授權資訊
+# │       └── statistics.csv          # 統計摘要 (多項指標)
+# ├── groups/                         # 群組資料目錄
+# │   └── <groupname>/
+# │       ├── groups.csv              # 群組資訊
+# │       ├── subgroups.csv           # 子群組列表
+# │       ├── projects.csv            # 專案列表
+# │       ├── permissions.csv         # 成員權限
+# │       └── summary.csv             # 群組摘要
+# └── projects/                       # 專案資料目錄
+#     └── <projectname>/
+#         ├── project.csv             # 專案資訊
+#         └── permissions.csv         # 專案權限
+# 
+# 📌 CSV 檔案編碼：UTF-8 with BOM (utf-8-sig)，Excel 可直接開啟
 # 
 # 範例：分析開發者 G2023018 在 "新求才WebVue" 專案
-# → 輸出路徑：.\output\G2023018\commits.csv
+# → 輸出路徑：output/users/G2023018/commits.csv
 
 # 取得使用者專案列表
 python3 gl-cli.py user-projects \
   --username <開發者名稱> \
-  --group-name <群組名稱>
+  --group-name <群組名稱> \
+  --output <輸出目錄>  # 選填
 
 # 取得專案詳細資訊
 python3 gl-cli.py project-stats \
-  --project-name <專案名稱>
+  --project-name <專案名稱> \
+  --output <輸出目錄>  # 選填
 
 # 取得群組資訊
 python3 gl-cli.py group-stats \
-  --group-name <群組名稱>
+  --group-name <群組名稱> \
+  --output <輸出目錄>  # 選填
 ```
 
-### 🆕 支援多參數查詢（v2.0.0+）
+### 🆕 支援多參數查詢與批次模式優化
 
 ```bash
-# 多位使用者同時查詢
+# 多位使用者同時查詢（自動啟用批次模式優化）
+# 批次模式：預先載入專案清單，共用快取，顯著提升效能
 python3 gl-cli.py user-details \
   --username alice bob charlie \
   --start-date 2024-01-01
 
-# 多個專案同時查詢
+# 多個專案同時查詢（笛卡爾積模式）
 python3 gl-cli.py user-details \
   --project-name "web-api" "mobile-app" "admin-panel" \
   --start-date 2024-01-01
 
 # 組合查詢：多位使用者在多個專案的活動
+# 注意：多使用者 + 多專案 → 使用笛卡爾積模式（較慢）
 python3 gl-cli.py user-details \
   --username alice bob \
   --project-name "web-api" "mobile-app" \
   --start-date 2024-01-01
+
+# 💡 效能建議：
+# ✅ 推薦：多使用者 + 單一專案範圍（或不指定專案）→ 批次模式
+# ⚠️  較慢：多使用者 + 多專案 → 笛卡爾積模式
 ```
 
-### 相依套件
+### 相依套件與環境設定
 
 執行前需確保已安裝：
 - pandas
 - openpyxl
 - urllib3
-- python-gitlab (透過 gitlab_client.py)
+- python-gitlab >= 4.4.0 (透過 gitlab_client.py)
 
 若缺少套件，引導使用者安裝：
 ```bash
-cd /mnt/d/lab/sample.dotblog/Gitlab/Lab.Personal
+cd /mnt/d/lab/gitlab-developer-assessment
 source .venv/bin/activate  # 如果有虛擬環境
 pip install pandas openpyxl urllib3 python-gitlab
+
+# 或使用 uv（推薦）
+cd scripts && uv sync
+```
+
+### 設定檔配置
+
+首次使用需設定 GitLab 連線資訊：
+```bash
+# 複製範本
+cp scripts/config-example.py scripts/config.py
+
+# 編輯 config.py，設定以下參數：
+# - GITLAB_URL: GitLab 伺服器位址
+# - GITLAB_TOKEN: Personal Access Token（需要 read_api, read_repository, read_user 權限）
+# - START_DATE / END_DATE: 預設分析時間範圍
+# - TARGET_GROUP_ID: 預設群組 ID（可選）
 ```
 
 ## 互動式工作流程
@@ -150,33 +194,45 @@ pip install pandas openpyxl urllib3 python-gitlab
 1. **檢查環境**
    ```bash
    # 確認 gl-cli.py 可用
-   test -f /mnt/d/lab/sample.dotblog/Gitlab/Lab.Personal/scripts/gl-cli.py
+   test -f /mnt/d/lab/gitlab-developer-assessment/scripts/gl-cli.py
    
    # 檢查相依套件
-   cd /mnt/d/lab/sample.dotblog/Gitlab/Lab.Personal/scripts
-   python3 -c "import pandas, openpyxl, urllib3" 2>&1
+   cd /mnt/d/lab/gitlab-developer-assessment/scripts
+   python3 -c "import pandas, openpyxl, urllib3, gitlab" 2>&1
+   
+   # 檢查設定檔
+   test -f /mnt/d/lab/gitlab-developer-assessment/scripts/config.py
    ```
 
 2. **收集開發者資料**
    ```bash
-   cd /mnt/d/lab/sample.dotblog/Gitlab/Lab.Personal/scripts
+   cd /mnt/d/lab/gitlab-developer-assessment/scripts
+   
+   # 單一使用者
    python3 gl-cli.py user-details \
      --username <username> \
      --start-date <YYYY-MM-DD> \
-     --end-date <YYYY-MM-DD>
-   # 注意：v2.0.0+ 不再支援 --output 參數，檔案自動輸出到 output/ 目錄
+     --end-date <YYYY-MM-DD> \
+     --output ./output  # 可選，預設為 ./output
+   
+   # 多位使用者（批次模式優化）
+   python3 gl-cli.py user-details \
+     --username alice bob charlie \
+     --start-date <YYYY-MM-DD>
    ```
 
 3. **收集專案參與資料**
    ```bash
    python3 gl-cli.py user-projects \
-     --username <username>
+     --username <username> \
+     --output ./output  # 可選
    ```
 
 4. **讀取並解析輸出檔案**
-   - 所有 CSV 檔案自動輸出到 `scripts/output/<username>/` 目錄
+   - 所有 CSV 檔案輸出到 `scripts/output/users/<username>/` 目錄
+   - CSV 使用 UTF-8 BOM 編碼 (utf-8-sig)，Excel 可直接開啟
    - 使用 bash + pandas 工具讀取並分析 CSV 檔案
-   - 參考自動產生的 `output/<username>/index.md` 檔案了解所有輸出檔案清單
+   - 參考自動產生的 `output/users/<username>/<username>-index.md` 檔案了解檔案清單與資料摘要
 
 ### 第 3 步：資料分析
 
@@ -342,15 +398,19 @@ pip install pandas openpyxl urllib3 python-gitlab
 1. **缺少相依套件**
    ```bash
    # 引導安裝
-   cd /mnt/d/lab/sample.dotblog/Gitlab/Lab.Personal
-   source .venv/bin/activate
-   pip install -r requirements.txt
+   cd /mnt/d/lab/gitlab-developer-assessment
+   source .venv/bin/activate  # 如果有虛擬環境
+   pip install pandas openpyxl urllib3 python-gitlab
+   
+   # 或使用 uv（推薦）
+   cd scripts && uv sync
    ```
 
 2. **GitLab 連線失敗**
-   - 檢查 `config.py` 設定
-   - 確認 GitLab Token 有效性
+   - 檢查 `scripts/config.py` 設定（GITLAB_URL, GITLAB_TOKEN）
+   - 確認 GitLab Token 有效性與權限（需要 read_api, read_repository, read_user）
    - 驗證網路連線與 SSL 憑證
+   - SSL 憑證問題：gl-cli.py 預設已停用 SSL 驗證（ssl_verify=False）
 
 3. **無資料返回**
    - 確認使用者名稱正確
@@ -364,24 +424,29 @@ pip install pandas openpyxl urllib3 python-gitlab
 ## 最佳實踐
 
 1. **資料保護**
-   - 輸出檔案使用臨時目錄 (`/tmp`)
+   - 輸出檔案預設儲存在 `scripts/output/`，可透過 `--output` 自訂
    - 不在報告中包含敏感資訊（email、token）
    - 分析完成後詢問是否刪除暫存檔案
 
 2. **效能優化**
-   - 大型團隊分析時，建議分批處理
+   - ✅ **批次模式**：多位使用者 + 單一專案範圍（或不指定專案）→ 自動啟用批次模式，預先載入專案清單，共用快取
+   - ⚠️ **笛卡爾積模式**：多位使用者 + 多個專案 → 效能較慢，建議拆分查詢
+   - 大型團隊分析時，建議分批處理（利用批次模式優化）
    - 使用 `--group-id` 限縮查詢範圍
    - 避免過長的時間區間（建議 ≤ 6 個月）
+   - gl-cli.py 使用多執行緒（ThreadPoolExecutor）加速專案分析，最多 10 個並行執行緒
 
 3. **報告品質**
    - 提供具體數據支持評分
    - 避免主觀判斷，基於客觀指標
    - 給予建設性改善建議
+   - 善用自動產生的 `<username>-index.md` 檔案快速了解資料概況
 
 4. **使用者體驗**
    - 清晰的互動提示
-   - 進度即時反饋
+   - 進度即時反饋（多查詢時自動顯示進度：查詢 X/Y）
    - 結果易於理解的視覺化呈現
+   - CSV 使用 UTF-8 BOM 編碼，Excel 可直接開啟無亂碼
 
 ## 範例對話流程
 
