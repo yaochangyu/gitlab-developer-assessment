@@ -169,6 +169,7 @@ cp scripts/config-example.py scripts/config.py
 1. **分析對象**
    - 特定開發者（請提供 GitLab username）
    - 整個團隊/群組（請提供群組名稱或 ID）
+   - 所有開發者（取得所有使用者列表）
 
 2. **時間範圍**
    - 最近 1 個月
@@ -193,7 +194,28 @@ cp scripts/config-example.py scripts/config.py
 
 根據使用者選擇，依序執行：
 
-1. **檢查環境**
+1. **取得所有開發者列表**（若需分析所有開發者）
+   
+   **方法 1：使用 export_all_users.py 腳本**
+   ```bash
+   cd /mnt/d/lab/gitlab-developer-assessment/scripts
+   python3 export_all_users.py --output ./output
+   ```
+   
+   **方法 2：讀取既有的匯出檔案**
+   ```bash
+   # 列出所有使用者匯出檔案（檔名格式：all-users_*.csv）
+   ls -lh scripts/output/all-users_*.csv
+   
+   # 讀取最新的使用者列表
+   cat scripts/output/all-users_*.csv | head -20
+   ```
+   
+   > 💡 **提示**：兩種方法擇一使用即可
+   > - 方法 1：即時從 GitLab API 取得最新資料
+   > - 方法 2：使用已匯出的資料（速度較快，但可能不是最新）
+
+2. **檢查環境**
    ```bash
    # 確認 gl-cli.py 可用
    test -f /mnt/d/lab/gitlab-developer-assessment/scripts/gl-cli.py
@@ -206,31 +228,73 @@ cp scripts/config-example.py scripts/config.py
    test -f /mnt/d/lab/gitlab-developer-assessment/scripts/config.py
    ```
 
-2. **收集開發者資料**
+3. **檢查並收集開發者資料**
+   
+   **⚠️ 重要：分析前必須先檢查索引檔案是否存在！**
+   
    ```bash
    cd /mnt/d/lab/gitlab-developer-assessment/scripts
    
-   # 單一使用者
-   python3 gl-cli.py user-details \
-     --username <username> \
-     --start-date <YYYY-MM-DD> \
-     --end-date <YYYY-MM-DD> \
-     --output ./output  # 可選，預設為 ./output
+   # 步驟 A：檢查索引檔案是否存在
+   # 路徑格式：.\scripts\output\users\{username}\{username}-index.md
+   INDEX_FILE="output/users/<username>/<username>-index.md"
    
-   # 多位使用者（批次模式優化）
-   python3 gl-cli.py user-details \
-     --username alice bob charlie \
-     --start-date <YYYY-MM-DD>
+   if [ -f "$INDEX_FILE" ]; then
+     echo "✅ 索引檔案已存在：$INDEX_FILE"
+     echo "⏭️  跳過資料收集，直接進行分析"
+   else
+     echo "❌ 索引檔案不存在：$INDEX_FILE"
+     echo "📥 開始收集開發者資料..."
+     
+     # 步驟 B：執行 gl-cli.py user-details 收集資料
+     python3 gl-cli.py user-details \
+       --username <username> \
+       --start-date <YYYY-MM-DD> \
+       --end-date <YYYY-MM-DD> \
+       --output ./output  # 可選，預設為 ./output
+   fi
    ```
+   
+   **多位使用者的檢查與收集**：
+   ```bash
+   # 批次處理多位使用者
+   USERS=("alice" "bob" "charlie")
+   MISSING_USERS=()
+   
+   # 檢查哪些使用者缺少索引檔案
+   for user in "${USERS[@]}"; do
+     if [ ! -f "output/users/$user/$user-index.md" ]; then
+       echo "❌ $user: 索引檔案不存在"
+       MISSING_USERS+=("$user")
+     else
+       echo "✅ $user: 索引檔案已存在，跳過收集"
+     fi
+   done
+   
+   # 只收集缺少資料的使用者
+   if [ ${#MISSING_USERS[@]} -gt 0 ]; then
+     echo "📥 收集 ${#MISSING_USERS[@]} 位使用者的資料..."
+     python3 gl-cli.py user-details \
+       --username ${MISSING_USERS[@]} \
+       --start-date <YYYY-MM-DD>
+   else
+     echo "✅ 所有使用者資料已存在，直接進行分析"
+   fi
+   ```
+   
+   > 💡 **最佳實踐**：
+   > - 先檢查 `{username}-index.md` 是否存在，避免重複收集資料
+   > - 若索引檔案存在，表示該使用者的資料已完整收集
+   > - 若索引檔案不存在或資料過舊，才執行 `gl-cli.py user-details`
 
-3. **收集專案參與資料**
+4. **收集專案參與資料**
    ```bash
    python3 gl-cli.py user-projects \
      --username <username> \
      --output ./output  # 可選
    ```
 
-4. **讀取並解析輸出檔案**
+5. **讀取並解析輸出檔案**
    - 所有 CSV 檔案輸出到 `scripts/output/users/<username>/` 目錄
    - CSV 使用 UTF-8 BOM 編碼 (utf-8-sig)，Excel 可直接開啟
    - 使用 bash + pandas 工具讀取並分析 CSV 檔案
@@ -240,12 +304,25 @@ cp scripts/config-example.py scripts/config.py
 
 **⚠️ 重要：在進行資料分析前，必須先讀取索引檔案！**
 
+**工作流程**：
+1. 檢查索引檔案是否存在：`.\scripts\output\users\{username}\{username}-index.md`
+2. 若不存在 → 返回「第 2 步：步驟 3」執行 `gl-cli.py user-details` 收集資料
+3. 若存在 → 繼續讀取索引檔案內容
+
 ```bash
-# 1. 檢查索引檔案是否存在
-test -f scripts/output/users/<username>/<username>-index.md && echo "索引檔案存在" || echo "索引檔案不存在，請先執行 user-details 命令"
+# 1. 檢查索引檔案是否存在（路徑格式：.\scripts\output\users\{username}\{username}-index.md）
+INDEX_FILE="scripts/output/users/<username>/<username>-index.md"
+
+if [ -f "$INDEX_FILE" ]; then
+  echo "✅ 索引檔案存在，繼續分析流程"
+else
+  echo "❌ 索引檔案不存在：$INDEX_FILE"
+  echo "📥 請先執行 gl-cli.py user-details 收集資料"
+  exit 1
+fi
 
 # 2. 讀取索引檔案，了解該開發者的資料概況
-cat scripts/output/users/<username>/<username>-index.md
+cat "$INDEX_FILE"
 ```
 
 **索引檔案內容包含**：
@@ -322,9 +399,9 @@ cat scripts/output/users/G2023018/G2023018-index.md
 **⚠️ 重要：分析報告必須輸出到指定位置！**
 
 **輸出規則**：
-- 📁 **輸出目錄**：`scripts/output/users/<username>/`
+- 📁 **輸出目錄**：`.\scripts\output\users\{username}`
 - 📄 **檔名**：`analysis-result.md`
-- 📝 **完整路徑範例**：`scripts/output/users/john.doe/analysis-result.md`
+- 📝 **完整路徑範例**：`.\scripts\output\users\john.doe\analysis-result.md`
 
 產生結構化的 Markdown 報告：
 
@@ -440,6 +517,7 @@ cat scripts/output/users/G2023018/G2023018-index.md
 **儲存報告**：
 ```bash
 # 將上述 Markdown 報告儲存到指定位置
+# 路徑格式：.\scripts\output\users\{username}\analysis-result.md
 cat > scripts/output/users/<username>/analysis-result.md << 'EOF'
 [將上述報告內容貼上]
 EOF
@@ -451,6 +529,7 @@ ls -lh scripts/output/users/<username>/analysis-result.md
 **範例**：
 ```bash
 # 為開發者 john.doe 產生分析報告
+# 輸出路徑：.\scripts\output\users\john.doe\analysis-result.md
 cat > scripts/output/users/john.doe/analysis-result.md << 'EOF'
 # GitLab Developer Assessment Report
 
@@ -468,8 +547,8 @@ EOF
 詢問使用者是否需要：
 
 1. **查看報告與資料**
-   - 分析報告已儲存在：`scripts/output/users/<username>/analysis-result.md`
-   - 原始 CSV 資料位於：`scripts/output/users/<username>/*.csv`
+   - 分析報告已儲存在：`.\scripts\output\users\{username}\analysis-result.md`
+   - 原始 CSV 資料位於：`.\scripts\output\users\{username}\*.csv`
    - 是否需要額外的圖表或統計分析？
 
 2. **進階分析**
@@ -538,6 +617,7 @@ EOF
    - 進度即時反饋（多查詢時自動顯示進度：查詢 X/Y）
    - 結果易於理解的視覺化呈現
    - CSV 使用 UTF-8 BOM 編碼，Excel 可直接開啟無亂碼
+   - **分析報告必須儲存在**：`.\scripts\output\users\{username}\analysis-result.md`
 
 ## 範例對話流程
 
@@ -572,11 +652,23 @@ Skill: 3. 評估維度？（可多選）
 
 Skill: 收到！開始執行完整評估...
 
-[執行 gl-cli.py 命令收集資料]
+[步驟 1：檢查索引檔案]
+Skill: 🔍 檢查 john.doe 的索引檔案是否存在...
+       路徑：.\scripts\output\users\john.doe\john.doe-index.md
 
-Skill: 資料收集完成！現在讀取索引檔案了解整體概況...
+[情境 A：索引檔案已存在]
+Skill: ✅ 索引檔案已存在，跳過資料收集步驟
+       ⏭️  直接進行分析流程
 
-[讀取 scripts/output/users/john.doe/john.doe-index.md]
+[情境 B：索引檔案不存在]
+Skill: ❌ 索引檔案不存在
+       📥 開始收集 john.doe 的資料...
+       [執行 gl-cli.py user-details --username john.doe ...]
+       ✅ 資料收集完成！
+
+[步驟 2：讀取索引檔案]
+Skill: 📖 讀取索引檔案了解整體概況...
+       [讀取 .\scripts\output\users\john.doe\john.doe-index.md]
 
 Skill: 根據索引檔案，john.doe 在過去 3 個月有：
 - 總 Commits: 87 次
@@ -591,7 +683,7 @@ Skill: 根據索引檔案，john.doe 在過去 3 個月有：
 
 完成！評估報告已產生：
 
-📄 報告位置：`scripts/output/users/john.doe/analysis-result.md`
+📄 報告位置：`.\scripts\output\users\john.doe\analysis-result.md`
 
 [顯示報告內容摘要或完整報告]
 
