@@ -1494,6 +1494,37 @@ class UserStatsService(BaseService):
         """
         total_exported_count = 0
         
+        # 優先從 user_profile 取得 GitLab username
+        user_profile_df = processed_data.get('user_profile', pd.DataFrame())
+        
+        if not user_profile_df.empty and 'username' in user_profile_df.columns:
+            # 使用 GitLab username（最優先）
+            gitlab_username = user_profile_df.iloc[0]['username']
+            
+            # 建立使用者專屬目錄：output/users/{username}/
+            user_output_dir = Path(self.exporter.output_dir) / 'users' / gitlab_username
+            user_output_dir.mkdir(parents=True, exist_ok=True)
+            
+            # 建立使用者專屬的 exporter
+            user_exporter = DataExporter(output_dir=str(user_output_dir))
+            
+            # 匯出所有資料（不需要過濾，因為已經是該使用者的資料）
+            exported_files = []
+            for data_type, df in processed_data.items():
+                if not df.empty:
+                    # 檔名直接使用資料類型（如 commits.csv, merge_requests.csv）
+                    filename = data_type
+                    user_exporter.export(df, filename)
+                    exported_files.append((data_type, filename))
+                    total_exported_count += 1
+            
+            # 產生該使用者的索引檔案
+            if exported_files:
+                self._generate_developer_index_file(user_exporter, gitlab_username, exported_files, gitlab_username)
+            
+            return total_exported_count
+        
+        # 如果沒有 user_profile，使用原有邏輯（按 author_name 分組）
         # 從 commits 中取得所有開發者的 author_name 和 author_email
         commits_df = processed_data.get('commits', pd.DataFrame())
         
@@ -1516,9 +1547,8 @@ class UserStatsService(BaseService):
             dev_name = dev_row['author_name']
             dev_email = dev_row['author_email']
             
-            # 建立開發者專屬目錄
-            # 使用 author_name 作為目錄名稱
-            dev_output_dir = Path(self.exporter.output_dir) / dev_name
+            # 建立開發者專屬目錄：output/users/{author_name}/
+            dev_output_dir = Path(self.exporter.output_dir) / 'users' / dev_name
             dev_output_dir.mkdir(parents=True, exist_ok=True)
             
             # 建立開發者專屬的 exporter
@@ -1527,24 +1557,19 @@ class UserStatsService(BaseService):
             # 過濾該開發者的資料
             dev_data = self._filter_developer_data(processed_data, dev_name, dev_email)
             
-            # 決定檔名
-            if project_name:
-                base_filename = f"{project_name}-user-details"
-            else:
-                base_filename = "user-details"
-            
             # 匯出該開發者的資料
             exported_files = []
             for data_type, df in dev_data.items():
                 if not df.empty:
-                    filename = f"{base_filename}-{data_type}"
+                    # 檔名直接使用資料類型
+                    filename = data_type
                     dev_exporter.export(df, filename)
                     exported_files.append((data_type, filename))
                     total_exported_count += 1
             
             # 產生該開發者的索引檔案
             if exported_files:
-                self._generate_developer_index_file(dev_exporter, base_filename, exported_files, dev_name)
+                self._generate_developer_index_file(dev_exporter, dev_name, exported_files, dev_name)
         
         return total_exported_count
     
