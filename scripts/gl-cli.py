@@ -1287,18 +1287,25 @@ class ProjectStatsService(BaseService):
         # 處理資料
         processed_data = self.processor.process(data)
         
-        # 匯出專案資料（包含授權統計）
-        if project_name:
-            base_filename = f"{project_name}-project-stats"
-        else:
-            base_filename = "all-project-stats"
+        # 取得專案路徑作為子目錄名稱
+        # 從第一筆專案資料中取得 path
+        project_path = None
+        if not processed_data['projects'].empty:
+            project_path = processed_data['projects'].iloc[0].get('path', None)
         
-        self.exporter.export(processed_data['projects'], base_filename)
+        # 如果沒有 project_path，使用 project_name
+        if not project_path and project_name:
+            project_path = project_name
+        
+        # 建立兩層目錄結構：projects/{project_path}/
+        subdir = f"projects/{project_path}" if project_path else "projects"
+        
+        # 匯出專案資料（包含授權統計）
+        self.exporter.export(processed_data['projects'], 'project', subdir=subdir)
         
         # 匯出授權詳細資料
         if not processed_data['permissions'].empty:
-            permission_filename = f"{base_filename}-permissions"
-            self.exporter.export(processed_data['permissions'], permission_filename)
+            self.exporter.export(processed_data['permissions'], 'permissions', subdir=subdir)
             print(f"\n✓ Total permission records: {len(processed_data['permissions'])}")
         
         print(f"✓ Total projects: {len(processed_data['projects'])}")
@@ -1329,13 +1336,21 @@ class ProjectPermissionService(BaseService):
         # 處理資料
         df = self.processor.process(permissions)
         
-        # 匯出資料
-        if project_name:
-            filename = f"{project_name}-project-permission"
-        else:
-            filename = "all-project-permission"
+        # 取得專案路徑作為子目錄名稱
+        # 從第一筆權限資料中取得 project_path
+        project_path = None
+        if not df.empty and 'project_path' in df.columns:
+            project_path = df.iloc[0].get('project_path', None)
         
-        self.exporter.export(df, filename)
+        # 如果沒有 project_path，使用 project_name
+        if not project_path and project_name:
+            project_path = project_name
+        
+        # 建立兩層目錄結構：projects/{project_path}/
+        subdir = f"projects/{project_path}" if project_path else "projects"
+        
+        # 匯出資料
+        self.exporter.export(df, 'permissions', subdir=subdir)
         
         print(f"\n✓ Total permission records: {len(df)}")
         

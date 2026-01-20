@@ -24,7 +24,7 @@ disable_ssl_warnings()
 
 
 def export_all_projects(output_dir: str = "./output"):
-    """匯出所有專案到 CSV 檔案"""
+    """匯出所有專案到 CSV 檔案（每個專案獨立目錄）"""
     
     # 初始化 GitLab 客戶端
     print(f"連線到 GitLab: {GITLAB_URL}")
@@ -34,18 +34,22 @@ def export_all_projects(output_dir: str = "./output"):
     # 取得所有專案
     print("正在取得所有專案...")
     projects = client.get_projects()
-    print(f"找到 {len(projects)} 個專案")
+    print(f"找到 {len(projects)} 個專案\n")
     
     # 準備輸出目錄
     output_path = ensure_output_dir(output_dir)
     
-    # 收集所有專案資料
-    all_projects = []
+    # 逐一處理每個專案
+    successful_count = 0
     
     for idx, project in enumerate(projects, 1):
         # 取得完整專案資訊
         try:
             full_project = client.get_project(project.id)
+            project_path = getattr(full_project, 'path', f'project-{full_project.id}')
+            
+            # 顯示進度
+            progress.report_progress(idx, len(projects), f"處理專案: {full_project.path_with_namespace}")
             
             project_info = {
                 'id': full_project.id,
@@ -76,27 +80,29 @@ def export_all_projects(output_dir: str = "./output"):
             if hasattr(full_project, 'owner') and full_project.owner:
                 project_info['creator_name'] = full_project.owner.get('name', '')
             
-            all_projects.append(project_info)
+            # 建立專案專屬目錄（兩層結構：projects/{project_path}/）
+            from pathlib import Path
+            project_dir = Path(output_path) / 'projects' / project_path
+            project_dir.mkdir(parents=True, exist_ok=True)
             
-            # 顯示進度
-            progress.report_progress(idx, len(projects), full_project.path_with_namespace)
+            # 匯出專案資訊
+            export_dataframe_to_csv(
+                pd.DataFrame([project_info]),
+                str(project_dir),
+                'project'
+            )
+            
+            successful_count += 1
             
         except Exception as e:
             print(f"\r  [錯誤] 無法取得專案 {project.id}: {e}".ljust(120))
             continue
     
-    # 匯出 CSV
-    if all_projects:
-        timestamp = get_timestamp()
-        filename = f"all-projects_{timestamp}"
-        csv_path = export_dataframe_to_csv(
-            pd.DataFrame(all_projects),
-            output_path,
-            filename
-        )
-        print(f"\n✅ 完成！匯出 {len(all_projects)} 個專案到 {csv_path}")
-    else:
-        print("\n⚠️  未找到任何專案")
+    # 完成訊息
+    print(f"\n{'='*70}")
+    print(f"✅ 完成！成功匯出 {successful_count}/{len(projects)} 個專案")
+    print(f"   輸出目錄: {output_path}/projects/")
+    print(f"{'='*70}")
 
 
 def main():

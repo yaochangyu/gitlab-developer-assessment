@@ -165,8 +165,8 @@ class GroupExporter:
             
             print(f"\n[{idx}/{total_groups}] 匯出群組: {group_name}")
             
-            # 建立群組專屬目錄
-            group_dir = Path(self.output_dir) / group_path
+            # 建立群組專屬目錄（兩層結構：groups/{group_path}/）
+            group_dir = Path(self.output_dir) / 'groups' / group_path
             group_dir.mkdir(parents=True, exist_ok=True)
             
             # 匯出群組資料
