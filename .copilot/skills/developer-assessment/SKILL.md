@@ -51,16 +51,19 @@ python3 gl-cli.py user-details \
   --start-date <YYYY-MM-DD> \
   --end-date <YYYY-MM-DD>
 
-# 輸出檔案（自動產生在 output/ 目錄）：
-# - <username>-<project>-user-user_profile.csv      (使用者基本資料 30+ 欄位)
-# - <username>-<project>-user-user_events.csv       (活動事件追蹤)
-# - <username>-<project>-user-commits.csv           (Commit 詳細記錄)
-# - <username>-<project>-user-code_changes.csv      (程式碼異動詳情)
-# - <username>-<project>-user-merge_requests.csv    (MR 記錄)
-# - <username>-<project>-user-code_reviews.csv      (Code Review 評論)
-# - <username>-<project>-user-permissions.csv       (專案授權資訊)
-# - <username>-<project>-user-statistics.csv        (統計摘要 17 個指標)
-# - <username>-<project>-user-index.md              (索引檔案)
+# 輸出檔案（以開發者為主，自動產生在 output/<username>/ 目錄）：
+# - output/<username>/user_profile.csv         (使用者基本資料 30+ 欄位)
+# - output/<username>/user_events.csv          (活動事件追蹤)
+# - output/<username>/commits.csv              (Commit 詳細記錄)
+# - output/<username>/code_changes.csv         (程式碼異動詳情)
+# - output/<username>/merge_requests.csv       (MR 記錄)
+# - output/<username>/code_reviews.csv         (Code Review 評論)
+# - output/<username>/permissions.csv          (專案授權資訊)
+# - output/<username>/statistics.csv           (統計摘要 17 個指標)
+# - output/<username>/index.md                 (索引檔案)
+# 
+# 範例：分析開發者 G2023018 在 "新求才WebVue" 專案
+# → 輸出路徑：.\output\G2023018\commits.csv
 
 # 取得使用者專案列表
 python3 gl-cli.py user-projects \
@@ -171,9 +174,9 @@ pip install pandas openpyxl urllib3 python-gitlab
    ```
 
 4. **讀取並解析輸出檔案**
-   - 所有 CSV 檔案自動輸出到 `scripts/output/` 目錄
+   - 所有 CSV 檔案自動輸出到 `scripts/output/<username>/` 目錄
    - 使用 bash + pandas 工具讀取並分析 CSV 檔案
-   - 參考自動產生的 `*-index.md` 檔案了解所有輸出檔案清單
+   - 參考自動產生的 `output/<username>/index.md` 檔案了解所有輸出檔案清單
 
 ### 第 3 步：資料分析
 
@@ -320,7 +323,7 @@ pip install pandas openpyxl urllib3 python-gitlab
 詢問使用者是否需要：
 
 1. **匯出詳細資料**
-   - Excel 檔案已儲存在: `/tmp/dev_stats_<username>.xlsx`
+   - Excel 檔案已儲存在: `output/<username>/dev_stats.xlsx`
    - 是否需要轉換為 CSV 或其他格式？
 
 2. **進階分析**

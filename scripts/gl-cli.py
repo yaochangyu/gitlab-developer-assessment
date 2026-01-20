@@ -1481,29 +1481,10 @@ class UserStatsService(BaseService):
         # 處理資料
         processed_data = self.processor.process(user_data)
         
-        # 匯出資料
-        if username and project_name:
-            base_filename = f"{username}-{project_name}-user"
-        elif username:
-            base_filename = f"{username}-user"
-        elif project_name:
-            base_filename = f"{project_name}-users"
-        else:
-            base_filename = "all-users"
+        # 按照開發者分組並匯出（不論有沒有指定 username）
+        exported_count = self._export_by_developer(processed_data, username, project_name)
         
-        # 匯出各類資料並計數
-        exported_count = 0
-        exported_files = []  # 記錄已匯出的檔案
-        for data_type, df in processed_data.items():
-            if not df.empty:
-                filename = f"{base_filename}-{data_type}"
-                self.exporter.export(df, filename)
-                exported_files.append((data_type, filename))
-                exported_count += 1
-        
-        # 產生索引檔案
-        if exported_files:
-            self._generate_index_file(base_filename, exported_files)
+        # 產生索引檔案已移至 _export_by_developer 中
         
         # 顯示統計摘要
         if not processed_data['statistics'].empty:
@@ -1534,6 +1515,226 @@ class UserStatsService(BaseService):
         elapsed_time = time.time() - start_time
         print(f"✓ 執行時間: {elapsed_time:.2f} 秒")
         print("=" * 70)
+    
+    def _export_by_developer(self, processed_data: Dict[str, pd.DataFrame], 
+                            username: Optional[str] = None,
+                            project_name: Optional[str] = None) -> int:
+        """
+        按照開發者分組並匯出資料
+        
+        Args:
+            processed_data: 處理後的資料
+            username: 指定的使用者名稱（可選）
+            project_name: 指定的專案名稱（可選）
+            
+        Returns:
+            匯出的檔案數量
+        """
+        total_exported_count = 0
+        
+        # 從 commits 中取得所有開發者的 author_name 和 author_email
+        commits_df = processed_data.get('commits', pd.DataFrame())
+        
+        if commits_df.empty:
+            # 如果沒有 commits，檢查其他資料來源
+            statistics_df = processed_data.get('statistics', pd.DataFrame())
+            if not statistics_df.empty and 'author_name' in statistics_df.columns:
+                # 從統計資料中取得開發者列表
+                developers = statistics_df[['author_name', 'author_email']].drop_duplicates()
+            else:
+                # 沒有開發者資料，使用原本的邏輯（單一匯出）
+                print("⚠️  警告：沒有找到開發者資料，將使用預設匯出方式")
+                return self._export_single(processed_data, username, project_name)
+        else:
+            # 從 commits 中取得開發者列表
+            developers = commits_df[['author_name', 'author_email']].drop_duplicates()
+        
+        # 為每個開發者建立輸出目錄並匯出
+        for _, dev_row in developers.iterrows():
+            dev_name = dev_row['author_name']
+            dev_email = dev_row['author_email']
+            
+            # 建立開發者專屬目錄
+            # 使用 author_name 作為目錄名稱
+            dev_output_dir = Path(self.exporter.output_dir) / dev_name
+            dev_output_dir.mkdir(parents=True, exist_ok=True)
+            
+            # 建立開發者專屬的 exporter
+            dev_exporter = DataExporter(output_dir=str(dev_output_dir))
+            
+            # 過濾該開發者的資料
+            dev_data = self._filter_developer_data(processed_data, dev_name, dev_email)
+            
+            # 決定檔名
+            if project_name:
+                base_filename = f"{project_name}-user-details"
+            else:
+                base_filename = "user-details"
+            
+            # 匯出該開發者的資料
+            exported_files = []
+            for data_type, df in dev_data.items():
+                if not df.empty:
+                    filename = f"{base_filename}-{data_type}"
+                    dev_exporter.export(df, filename)
+                    exported_files.append((data_type, filename))
+                    total_exported_count += 1
+            
+            # 產生該開發者的索引檔案
+            if exported_files:
+                self._generate_developer_index_file(dev_exporter, base_filename, exported_files, dev_name)
+        
+        return total_exported_count
+    
+    def _export_single(self, processed_data: Dict[str, pd.DataFrame], 
+                      username: Optional[str] = None,
+                      project_name: Optional[str] = None) -> int:
+        """
+        單一匯出（當無法分組時使用）
+        
+        Args:
+            processed_data: 處理後的資料
+            username: 指定的使用者名稱（可選）
+            project_name: 指定的專案名稱（可選）
+            
+        Returns:
+            匯出的檔案數量
+        """
+        if username and project_name:
+            base_filename = f"{username}-{project_name}-user"
+        elif username:
+            base_filename = f"{username}-user"
+        elif project_name:
+            base_filename = f"{project_name}-users"
+        else:
+            base_filename = "all-users"
+        
+        exported_count = 0
+        exported_files = []
+        for data_type, df in processed_data.items():
+            if not df.empty:
+                filename = f"{base_filename}-{data_type}"
+                self.exporter.export(df, filename)
+                exported_files.append((data_type, filename))
+                exported_count += 1
+        
+        if exported_files:
+            self._generate_index_file(base_filename, exported_files)
+        
+        return exported_count
+    
+    def _filter_developer_data(self, processed_data: Dict[str, pd.DataFrame],
+                               dev_name: str, dev_email: str) -> Dict[str, pd.DataFrame]:
+        """
+        過濾出特定開發者的資料
+        
+        Args:
+            processed_data: 處理後的資料
+            dev_name: 開發者名稱
+            dev_email: 開發者 Email
+            
+        Returns:
+            該開發者的資料
+        """
+        result = {}
+        
+        # 過濾 commits
+        commits_df = processed_data.get('commits', pd.DataFrame())
+        if not commits_df.empty:
+            result['commits'] = commits_df[
+                (commits_df['author_name'] == dev_name) & 
+                (commits_df['author_email'] == dev_email)
+            ]
+        else:
+            result['commits'] = pd.DataFrame()
+        
+        # 過濾 code_changes
+        code_changes_df = processed_data.get('code_changes', pd.DataFrame())
+        if not code_changes_df.empty and 'author_name' in code_changes_df.columns:
+            result['code_changes'] = code_changes_df[code_changes_df['author_name'] == dev_name]
+        else:
+            result['code_changes'] = pd.DataFrame()
+        
+        # 過濾 merge_requests
+        merge_requests_df = processed_data.get('merge_requests', pd.DataFrame())
+        if not merge_requests_df.empty and 'author' in merge_requests_df.columns:
+            result['merge_requests'] = merge_requests_df[merge_requests_df['author'] == dev_name]
+        else:
+            result['merge_requests'] = pd.DataFrame()
+        
+        # 過濾 code_reviews
+        code_reviews_df = processed_data.get('code_reviews', pd.DataFrame())
+        if not code_reviews_df.empty and 'author' in code_reviews_df.columns:
+            result['code_reviews'] = code_reviews_df[code_reviews_df['author'] == dev_name]
+        else:
+            result['code_reviews'] = pd.DataFrame()
+        
+        # 過濾 permissions
+        permissions_df = processed_data.get('permissions', pd.DataFrame())
+        if not permissions_df.empty:
+            result['permissions'] = permissions_df[
+                (permissions_df['member_email'] == dev_email) |
+                (permissions_df['member_name'] == dev_name)
+            ]
+        else:
+            result['permissions'] = pd.DataFrame()
+        
+        # 過濾 statistics
+        statistics_df = processed_data.get('statistics', pd.DataFrame())
+        if not statistics_df.empty and 'author_name' in statistics_df.columns:
+            result['statistics'] = statistics_df[
+                (statistics_df['author_name'] == dev_name) & 
+                (statistics_df['author_email'] == dev_email)
+            ]
+        else:
+            result['statistics'] = pd.DataFrame()
+        
+        # 過濾 contributors
+        contributors_df = processed_data.get('contributors', pd.DataFrame())
+        if not contributors_df.empty:
+            result['contributors'] = contributors_df[
+                (contributors_df['contributor_email'] == dev_email) |
+                (contributors_df['contributor_name'] == dev_name)
+            ]
+        else:
+            result['contributors'] = pd.DataFrame()
+        
+        # user_profile 和 user_events 通常是單一使用者的，直接使用
+        result['user_profile'] = processed_data.get('user_profile', pd.DataFrame())
+        result['user_events'] = processed_data.get('user_events', pd.DataFrame())
+        
+        return result
+    
+    def _generate_developer_index_file(self, exporter: DataExporter, 
+                                       base_filename: str, 
+                                       exported_files: List[tuple],
+                                       dev_name: str) -> None:
+        """
+        產生開發者專屬的索引檔案
+        
+        Args:
+            exporter: 資料匯出器
+            base_filename: 基礎檔名
+            exported_files: 已匯出的檔案列表 [(data_type, filename), ...]
+            dev_name: 開發者名稱
+        """
+        index_filename = f"{base_filename}-index.md"
+        index_path = exporter.output_dir / index_filename
+        
+        # 準備索引內容
+        content = f"# 使用者分析報告索引\n\n"
+        content += f"**開發者：** {dev_name}\n\n"
+        content += f"**產生時間：** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
+        content += f"## 匯出檔案清單\n\n"
+        
+        for data_type, filename in exported_files:
+            content += f"- [{filename}]({filename}.csv)\n"
+        
+        # 寫入索引檔案
+        with open(index_path, 'w', encoding='utf-8') as f:
+            f.write(content)
+        
+        print(f"✓ Index file generated: {index_path}")
     
     def _generate_index_file(self, base_filename: str, exported_files: List[tuple]) -> None:
         """
