@@ -538,9 +538,23 @@ uv run python gl-cli.py project-stats --project-name "web-app" "api-server" "mob
 2. **資料處理** - 使用 `ProjectDataProcessor` 處理並整理成專案統計和權限兩類資料
 3. **資料匯出** - 將處理後的資料分別匯出成檔案(專案統計、授權詳細資料)，並顯示專案總數和授權記錄數
 
-**輸出檔案：**
-- `all-project-stats.{csv,md}` - 專案資料 + 授權統計
-- `all-project-stats-permissions.{csv,md}` - 授權詳細資料
+**輸出檔案：**（位於 `output/projects/{project_path}/` 目錄）
+- `project.{csv,md}` - 專案資料 + 授權統計
+- `permissions.{csv,md}` - 授權詳細資料
+
+**輸出目錄結構：**
+```
+output/
+└── projects/
+    ├── project1/
+    │   ├── project.csv         # 專案資訊
+    │   ├── project.md
+    │   ├── permissions.csv     # 授權詳細資料
+    │   └── permissions.md
+    └── project2/
+        ├── project.csv
+        └── permissions.csv
+```
 
 **新增授權統計欄位（8 個）：**
 - `total_members` - 總成員數
@@ -570,11 +584,28 @@ uv run python gl-cli.py group-stats --group-name "group1" "group2" "group3"
 2. **資料處理** - 使用 `GroupDataProcessor` 處理並整理成群組、子群組、專案、權限四類資料
 3. **資料匯出** - 將處理後的資料分別匯出成檔案(群組統計、子群組統計、專案統計、權限統計)，並顯示各類資料的總數
 
-**輸出檔案：**
-- `all-groups-stats.{csv,md}` - 群組資料 + 成員統計
-- `all-groups-stats-subgroups.{csv,md}` - 子群組資料
-- `all-groups-stats-projects.{csv,md}` - 群組專案資料
-- `all-groups-stats-permissions.{csv,md}` - 授權詳細資料
+**輸出檔案：**（位於 `output/groups/{group_path}/` 目錄）
+- `groups.{csv,md}` - 群組資料 + 成員統計
+- `subgroups.{csv,md}` - 子群組資料
+- `projects.{csv,md}` - 群組專案資料
+- `permissions.{csv,md}` - 授權詳細資料
+
+**輸出目錄結構：**
+```
+output/
+└── groups/
+    ├── group1/
+    │   ├── groups.csv          # 群組資訊
+    │   ├── groups.md
+    │   ├── subgroups.csv       # 子群組列表
+    │   ├── projects.csv        # 專案列表
+    │   ├── permissions.csv     # 授權詳細資料
+    │   └── permissions.md
+    └── group2/
+        ├── groups.csv
+        ├── subgroups.csv
+        └── projects.csv
+```
 
 **群組統計欄位：**
 - 群組基本資訊：`group_name`, `description`, `visibility`, `created_at`, `web_url`
@@ -607,9 +638,20 @@ uv run python gl-cli.py project-permission --project-name "proj1" "proj2" "proj3
 - 適合需要單純授權資料的場景
 - 若需完整專案資訊（含授權統計），可使用 `project-stats`
 
-**輸出檔案：**
-- `all-project-permission.{csv,md}` - 所有專案授權詳細資料
-- `{project-name}-project-permission.{csv,md}` - 特定專案授權資料
+**輸出檔案：**（位於 `output/projects/{project_path}/` 目錄）
+- `permissions.{csv,md}` - 專案授權詳細資料
+
+**輸出目錄結構：**
+```
+output/
+└── projects/
+    ├── project1/
+    │   ├── permissions.csv     # 授權詳細資料
+    │   └── permissions.md
+    └── project2/
+        ├── permissions.csv
+        └── permissions.md
+```
 
 ---
 
@@ -659,8 +701,19 @@ uv run python gl-cli.py user-details --username alice bob --project-name "web-ap
 **輸出檔案：** 
 - 單一查詢：`{userName}-user-{type}.{csv,md}` 或 `{projectName}-users-{type}.{csv,md}`
 - 組合查詢：`{userName}-{projectName}-user-{type}.{csv,md}` 🆕
-- 索引檔案：`{base_filename}-INDEX.md` （自動產生，包含所有 CSV 連結）🆕
-- 類型包含：`commits`, `merge_requests`, `code_reviews`, `permissions`, `statistics`, `user_profile`, `user_events`, `contributors`
+- 索引檔案：`{base_filename}-index.md` （自動產生，包含所有 CSV 連結）🆕
+- **8 種資料類型**：`user_profile`, `user_events`, `commits`, `code_changes`, `merge_requests`, `code_reviews`, `permissions`, `statistics`, `contributors`
+
+**資料類型說明：**
+- `user_profile` - 使用者基本資訊（30+ 欄位：email, job_title, organization, followers, 2FA 等）
+- `user_events` - 使用者活動事件（push, merged, commented, approved 等）
+- `commits` - 提交記錄（包含統計資料：additions, deletions, changed_files_count）
+- `code_changes` - 程式碼變更明細（檔案層級的 diff）
+- `merge_requests` - 合併請求（title, state, comments_count, merged_at）
+- `code_reviews` - 程式碼審查（討論串和審查意見）
+- `permissions` - 專案權限（access_level, access_level_name）
+- `statistics` - 統計摘要（彙總指標）
+- `contributors` - 貢獻者統計（per-project 貢獻數據）
 
 **索引檔案範例：**
 ```markdown
@@ -670,15 +723,21 @@ uv run python gl-cli.py user-details --username alice bob --project-name "web-ap
 
 ## 匯出檔案清單
 
-- [使用者基本資訊](G2023018-web-components-vue3-user-user_profile.csv)
-- [使用者事件](G2023018-web-components-vue3-user-user_events.csv)
-- [提交記錄](G2023018-web-components-vue3-user-commits.csv)
-- [程式碼變更](G2023018-web-components-vue3-user-code_changes.csv)
-- [合併請求](G2023018-web-components-vue3-user-merge_requests.csv)
-- [程式碼審查](G2023018-web-components-vue3-user-code_reviews.csv)
-- [專案權限](G2023018-web-components-vue3-user-permissions.csv)
-- [統計摘要](G2023018-web-components-vue3-user-statistics.csv)
+- [user_profile.csv](user_profile.csv)
+- [user_events.csv](user_events.csv)
+- [commits.csv](commits.csv)
+- [code_changes.csv](code_changes.csv)
+- [merge_requests.csv](merge_requests.csv)
+- [code_reviews.csv](code_reviews.csv)
+- [permissions.csv](permissions.csv)
+- [statistics.csv](statistics.csv)
+- [contributors.csv](contributors.csv)
 ```
+
+**索引檔案說明：**
+- 檔名格式：`{base_filename}-index.md`
+- 自動產生，包含所有已匯出檔案的連結
+- 方便快速查看和存取所有相關報告
 
 
 **授權統計欄位（新增）：**
@@ -733,7 +792,11 @@ uv run python gl-cli.py user-projects --username alice bob --group-name "group1"
 **輸出檔案：** 
 - `all-users_project.{csv,md}` - 所有使用者的專案列表（當未指定 username）
 - `{userName}-user_project.{csv,md}` - 特定使用者的專案列表（當指定 username）
-- `*-statistics.{csv,md}` - 統計摘要
+- `{userName}-user_project-statistics.{csv,md}` - 統計摘要
+
+**輸出位置：**
+- 預設輸出到 `output/` 目錄
+- 可使用 `--output` 參數自訂輸出目錄
 
 **專案列表欄位：**
 - `username`, `name`, `email` - 使用者識別資訊
@@ -888,11 +951,16 @@ GroupDataFetcher(client, progress_reporter)
 # 取得所有專案資訊（已驗證：成功獲取 378 個專案 + 授權資訊）
 uv run python gl-cli.py project-stats
 
-# 輸出檔案（4 個）
-# - output/all-project-stats.csv (包含授權統計)
-# - output/all-project-stats.md
-# - output/all-project-stats-permissions.csv (授權詳細資料)
-# - output/all-project-stats-permissions.md
+# 輸出目錄結構（每個專案獨立目錄）
+# output/
+# └── projects/
+#     ├── project1/
+#     │   ├── project.csv         # 包含授權統計
+#     │   ├── project.md
+#     │   ├── permissions.csv     # 授權詳細資料
+#     │   └── permissions.md
+#     └── project2/
+#         └── ...
 ```
 
 **專案資料包含的授權統計（新增 8 個欄位）：**
@@ -1018,15 +1086,15 @@ uv run python gl-cli.py project-stats --project-name "web-app" "api-server" "mob
 # 方式 1: 使用 project-stats（推薦，一次獲取專案資料 + 授權）
 uv run python gl-cli.py project-stats
 
-# 產生檔案：
-# - all-project-stats.csv（包含授權統計欄位）
-# - all-project-stats-permissions.csv（授權詳細資料）
+# 輸出目錄：output/projects/{project_path}/
+# - project.csv（包含授權統計欄位）
+# - permissions.csv（授權詳細資料）
 
 # 方式 2: 使用 project-permission（只獲取授權資訊）
 uv run python gl-cli.py project-permission
 
-# 產生檔案：
-# - all-project-permission.csv
+# 輸出目錄：output/projects/{project_path}/
+# - permissions.csv（授權詳細資料）
 ```
 
 **授權統計欄位說明（project-stats 輸出）：**
@@ -1052,7 +1120,7 @@ web-app,李四,user2,Maintainer
 
 **範例分析：**
 ```bash
-# 在 Excel 中開啟 all-project-stats.csv
+# 在 Excel 中開啟 output/projects/{project_name}/project.csv
 # 使用篩選功能：
 # - owners > 2：找出 Owner 過多的專案（風險）
 # - total_members = 0：找出無人維護的專案
@@ -1068,9 +1136,9 @@ uv run python gl-cli.py user-details \
     --project-name "web-api" \
     --start-date 2024-01-01
 
-# 產生檔案：
-# - web-api-users-commits.csv - 該專案的所有 commits
-# - web-api-users-statistics.csv - 該專案的開發者統計
+# 輸出目錄：output/users/{username}/
+# 每位在該專案有活動的開發者都會產生獨立目錄
+# - user_profile.csv, user_events.csv, commits.csv, ...
 
 # 方法 2: 分析特定開發者在特定專案的活動
 uv run python gl-cli.py user-details \
@@ -1078,9 +1146,10 @@ uv run python gl-cli.py user-details \
     --project-name "web-api" \
     --start-date 2024-01-01
 
-# 產生檔案：
-# - alice-web-api-user-commits.csv
-# - alice-web-api-user-statistics.csv
+# 輸出目錄：output/users/alice/
+# - user_profile.csv
+# - commits.csv（只包含 web-api 專案的提交）
+# - statistics.csv（只包含 web-api 專案的統計）
 ```
 
 **實際用途：**
@@ -1177,11 +1246,26 @@ uv run python gl-cli.py user-details \
     --start-date 2024-01-01 \
     --end-date 2024-12-31
 
-# 會執行 4 次查詢，產生 20 個檔案（每人 5 種類型）：
-# - alice-user-{commits,code_changes,merge_requests,code_reviews,statistics}.csv
-# - bob-user-{commits,code_changes,merge_requests,code_reviews,statistics}.csv
-# - charlie-user-{commits,code_changes,merge_requests,code_reviews,statistics}.csv
-# - david-user-{commits,code_changes,merge_requests,code_reviews,statistics}.csv
+# 輸出目錄結構（每位使用者獨立目錄）
+# output/
+# └── users/
+#     ├── alice/
+#     │   ├── user_profile.csv        # 8種資料類型
+#     │   ├── user_events.csv
+#     │   ├── commits.csv
+#     │   ├── code_changes.csv
+#     │   ├── merge_requests.csv
+#     │   ├── code_reviews.csv
+#     │   ├── permissions.csv
+#     │   ├── statistics.csv
+#     │   ├── contributors.csv
+#     │   └── index.md               # 索引檔案
+#     ├── bob/
+#     │   └── ...
+#     ├── charlie/
+#     │   └── ...
+#     └── david/
+#         └── ...
 ```
 
 **實際用途：**
@@ -1196,24 +1280,48 @@ uv run python gl-cli.py user-details \
 # 分析特定開發者 2024 年的表現
 uv run python gl-cli.py user-details --username alice --start-date 2024-01-01 --end-date 2024-12-31
 
-# 產生 5 個檔案
-# alice-user-commits.csv        - 所有 commit 記錄
-# alice-user-code_changes.csv   - 程式碼異動詳情
-# alice-user-merge_requests.csv - MR 資料
-# alice-user-code_reviews.csv   - Code Review 參與
-# alice-user-statistics.csv     - 統計摘要 ⭐
+# 輸出目錄：output/users/alice/
+# alice/
+# ├── user_profile.csv        # 使用者基本資訊
+# ├── user_events.csv         # 使用者事件（push, merge, comment...）
+# ├── commits.csv             # 所有 commit 記錄
+# ├── code_changes.csv        # 程式碼變更（檔案層級 diff）
+# ├── merge_requests.csv      # 所有 MR 記錄
+# ├── code_reviews.csv        # Code Review 參與記錄
+# ├── permissions.csv         # 專案授權記錄
+# ├── statistics.csv          # 統計摘要
+# ├── contributors.csv        # 貢獻者統計（per-project）
+# └── index.md                # 索引檔案
 ```
 
-**關鍵指標 (statistics.csv)：**
-```
-total_commits            : 總 commit 數（活躍度）
-total_additions          : 新增行數（貢獻量）
-avg_changes_per_commit   : 平均每次變更量（建議 100-500）
-total_merge_requests     : 總 MR 數（流程遵循）
-merged_mrs               : 已合併 MR（品質指標）
-total_code_reviews       : Code Review 參與（協作能力）
-projects_contributed     : 貢獻專案數（技術廣度）
-```
+**績效評估重點欄位：**
+
+1. **commits.csv** - 提交品質
+   - `additions`, `deletions` - 程式碼變更量
+   - `changed_files_count` - 異動檔案數（評估變更粒度）
+   - `commit_date` - 提交時間分布
+
+2. **merge_requests.csv** - 協作能力
+   - `state` - 合併狀態（merged/closed/open）
+   - `merged_at` - 完成時間
+   - `comments_count` - 討論參與度
+   - `upvotes`, `downvotes` - 程式碼品質指標
+
+3. **code_reviews.csv** - Code Review 參與
+   - `note_type` - 意見類型（討論/審查）
+   - `created_at` - 審查時間
+
+4. **statistics.csv** - 整體績效
+   - `total_commits`, `total_additions`, `total_deletions`
+   - `total_merge_requests`, `merged_merge_requests`, `merge_rate`
+   - `total_projects_participated` - 跨專案貢獻度
+   - `contributor_total_commits` - 貢獻者 API 統計（更準確）
+   - `total_user_events` - 活躍度指標
+
+5. **contributors.csv** - 專案貢獻明細
+   - Per-project 貢獻統計
+   - `total_commits`, `total_additions`, `total_deletions` 分專案呈現
+   - 識別核心貢獻專案
 
 **績效評估標準：**
 - 🟢 優秀：avg_changes 100-500、高 MR 合併率、積極參與 review
@@ -1229,10 +1337,15 @@ uv run python gl-cli.py user-details \
     --project-name "web-api" "mobile-app" "backend-service" \
     --start-date 2024-01-01
 
-# 會執行 3 次查詢，產生 15 個檔案（每個專案 5 種類型）：
-# - web-api-users-{commits,code_changes,merge_requests,code_reviews,statistics}.csv
-# - mobile-app-users-{commits,code_changes,merge_requests,code_reviews,statistics}.csv
-# - backend-service-users-{commits,code_changes,merge_requests,code_reviews,statistics}.csv
+# 輸出目錄結構（每位開發者獨立目錄，資料已過濾為指定專案）
+# output/
+# └── users/
+#     ├── alice/
+#     │   ├── commits.csv         # 只包含這 3 個專案的 commits
+#     │   ├── statistics.csv      # 只統計這 3 個專案
+#     │   └── ...
+#     └── bob/
+#         └── ...
 ```
 
 **實際用途：**
@@ -1277,14 +1390,23 @@ uv run python gl-cli.py user-details \
 # 分析團隊 2024 年 1 月的活動
 uv run python gl-cli.py user-details --start-date 2024-01-01 --end-date 2024-01-31
 
-# 輸出
-# all-users-statistics.csv  - 可直接放入月報
+# 輸出目錄結構（每位開發者獨立目錄）
+# output/
+# └── users/
+#     ├── alice/
+#     │   ├── statistics.csv      # 可直接放入月報
+#     │   └── ...
+#     ├── bob/
+#     │   └── ...
+#     └── charlie/
+#         └── ...
 ```
 
 **報告內容可包含：**
-- 📊 Top 10 最活躍開發者
+- 📊 Top 10 最活躍開發者（按 total_commits 排序）
 - 📈 團隊總 commits、MR、code review 數
-- 🎯 平均程式碼品質指標
+- 🎯 平均程式碼品質指標（merge_rate, avg_changes_per_commit）
+- 👥 跨專案貢獻分析
 
 ---
 
