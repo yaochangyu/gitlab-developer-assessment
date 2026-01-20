@@ -333,7 +333,18 @@ class UserDataFetcher(IDataFetcher):
                     all=True
                 )
                 
+                # 建立專案 ID 集合（用於過濾事件）
+                project_ids = {project.id for project in projects} if projects else set()
+                
+                filtered_count = 0
                 for event in events:
+                    event_project_id = getattr(event, 'project_id', None)
+                    
+                    # 如果有指定專案，只保留屬於這些專案的事件
+                    if projects and event_project_id not in project_ids:
+                        filtered_count += 1
+                        continue
+                    
                     user_data['user_events'].append({
                         'user_id': user_info.id,
                         'username': user_info.username,
@@ -343,11 +354,18 @@ class UserDataFetcher(IDataFetcher):
                         'target_title': getattr(event, 'target_title', ''),
                         'created_at': event.created_at,
                         'author_username': getattr(event, 'author_username', ''),
-                        'project_id': getattr(event, 'project_id', ''),
+                        'project_id': event_project_id or '',
                         'push_data': str(getattr(event, 'push_data', {}))
                     })
                 
-                self.progress.report_complete(f"找到 {len(events)} 個使用者事件")
+                total_events = len(events)
+                kept_events = len(user_data['user_events'])
+                if projects:
+                    self.progress.report_complete(
+                        f"找到 {total_events} 個使用者事件，保留 {kept_events} 個（過濾 {filtered_count} 個非專案事件）"
+                    )
+                else:
+                    self.progress.report_complete(f"找到 {total_events} 個使用者事件")
             except Exception as e:
                 self.progress.report_warning(f"Failed to get user events: {e}")
         
