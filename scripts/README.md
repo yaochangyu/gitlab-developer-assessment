@@ -8,30 +8,48 @@
 
 ## 🆕 最新功能 (2026-01-20)
 
-### 🎯 v1.4.0 新增：自訂輸出路徑支援
+### 🚀 v1.4.0 新增功能
+
+#### 1️⃣ 一鍵匯出所有群組 🆕
+
+**新增 `export_all_groups.py` 腳本，快速匯出完整群組資料！**
+
+```bash
+# 一鍵匯出所有群組、子群組、專案、權限
+python export_all_groups.py
+
+# 指定輸出目錄
+python export_all_groups.py --output ./reports
+```
+
+**匯出內容：**
+- ✅ 所有群組基本資訊
+- ✅ 子群組列表
+- ✅ 群組內專案
+- ✅ 成員權限明細
+- ✅ 統計摘要報告
+
+**檔名格式：** `all-groups_20260120_102530.csv`（自動帶時間戳）
+
+> 📖 詳細說明：[EXPORT_ALL_GROUPS.md](./EXPORT_ALL_GROUPS.md)
+
+#### 2️⃣ 自訂輸出路徑支援
 
 **所有命令現在都支援 `--output` 參數，讓您自由控制報告輸出位置！**
 
-#### 💡 使用範例
-
 ```bash
-# 1. 使用預設輸出目錄 (./output)
+# 使用預設輸出目錄 (./output)
 uv run python gl-cli.py project-stats
 
-# 2. 指定自訂輸出目錄（絕對路徑）
+# 指定自訂輸出目錄
 uv run python gl-cli.py project-stats --output /path/to/custom/output
 
-# 3. 使用相對路徑
-uv run python gl-cli.py user-details --username alice --output ./reports/2026-01
-
-# 4. 組合使用：多使用者分析 + 自訂輸出位置
+# 組合使用：多使用者分析 + 自訂輸出位置
 uv run python gl-cli.py user-details \
   --username alice bob charlie \
   --start-date 2024-01-01 \
   --output ./team-reports/Q1-2024
 ```
-
-#### ✨ 適用所有命令
 
 | 命令 | 支援 `--output` |
 |------|----------------|
@@ -723,6 +741,21 @@ uv run python gl-cli.py user-projects --username alice bob --group-name "group1"
 
 ## 🛠️ 便捷腳本（推薦）
 
+### 快速匯出所有群組 🆕
+
+```bash
+# 一鍵匯出所有群組資訊（群組、子群組、專案、權限）
+python export_all_groups.py
+
+# 或使用 uv
+uv run python export_all_groups.py
+
+# 指定輸出目錄
+python export_all_groups.py --output ./reports
+```
+
+> 📖 詳細說明請參考：[EXPORT_ALL_GROUPS.md](./EXPORT_ALL_GROUPS.md)
+
 ### Linux/macOS:
 ```bash
 ./run-gl-cli.sh project-stats
@@ -1282,12 +1315,14 @@ uv run python gl-cli.py project-stats
 | 檔案 | 說明 |
 |------|------|
 | `gl-cli.py` ⭐ | 主程式（推薦使用） |
+| `export_all_groups.py` 🆕 | 快速匯出所有群組資訊（一鍵執行） |
 | `config-example.py` 🆕 | 配置檔案範本（複製後編輯） |
 | `config.py` | 實際配置檔案（自行建立，已加入 .gitignore） |
 | `run-gl-cli.sh` | Linux/macOS 便捷腳本 |
 | `run-gl-cli.ps1` | Windows 便捷腳本 |
 | `gitlab_client.py` | GitLab API 客戶端 |
 | `.gitignore` | 忽略清單（包含 config.py） |
+| `EXPORT_ALL_GROUPS.md` 🆕 | 群組匯出腳本詳細說明 |
 
 ---
 
@@ -1331,7 +1366,17 @@ A: 已在實際環境測試：
 ## 📝 更新歷史
 
 ### v1.4.0 (2026-01-20) 🆕
-**新增功能：自訂輸出路徑**
+
+**新增功能 1：一鍵匯出所有群組**
+- ✨ 新增 `export_all_groups.py` 獨立腳本
+- ✨ 快速匯出所有群組、子群組、專案、權限資料
+- ✨ 自動產生統計摘要報告
+- ✨ 檔名帶時間戳，避免覆蓋
+- ✨ 詳細的逐群組進度顯示
+- 📖 說明文檔：`EXPORT_ALL_GROUPS.md`
+- 🎯 實際應用：組織架構盤點、權限審計、離職處理
+
+**新增功能 2：自訂輸出路徑**
 - ✨ 所有命令支援 `--output` 參數 - 自訂輸出目錄路徑
 - ✨ 預設輸出路徑：執行腳本的當前目錄下的 `output` 子目錄
 - ✨ 支援相對路徑和絕對路徑
