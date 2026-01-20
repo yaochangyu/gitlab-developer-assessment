@@ -1713,13 +1713,14 @@ class GroupStatsService(BaseService):
 class GitLabCLI:
     """GitLab CLI 主程式"""
     
-    def __init__(self):
+    def __init__(self, output_dir: Optional[str] = None):
         self.client = GitLabClient(
             gitlab_url=config.GITLAB_URL,
             private_token=config.GITLAB_TOKEN,
             ssl_verify=False
         )
-        self.exporter = DataExporter(output_dir=config.OUTPUT_DIR)
+        self.output_dir = output_dir or config.OUTPUT_DIR
+        self.exporter = DataExporter(output_dir=self.output_dir)
         self.progress = ConsoleProgressReporter()
     
     def create_project_stats_service(self) -> ProjectStatsService:
@@ -1756,6 +1757,11 @@ class GitLabCLI:
         """執行 CLI"""
         parser = self._create_parser()
         args = parser.parse_args()
+        
+        # 更新輸出目錄
+        if hasattr(args, 'output') and args.output:
+            self.output_dir = args.output
+            self.exporter = DataExporter(output_dir=self.output_dir)
         
         try:
             args.func(args)
@@ -1860,6 +1866,12 @@ class GitLabCLI:
             type=int,
             help=f'群組 ID (預設: {config.TARGET_GROUP_ID})'
         )
+        project_stats_parser.add_argument(
+            '--output',
+            type=str,
+            default=os.path.join(os.getcwd(), 'output'),
+            help='輸出目錄路徑 (預設: ./output)'
+        )
         project_stats_parser.set_defaults(func=self._cmd_project_stats)
         
         # 2. project-permission 命令
@@ -1877,6 +1889,12 @@ class GitLabCLI:
             '--group-id',
             type=int,
             help=f'群組 ID (預設: {config.TARGET_GROUP_ID})'
+        )
+        project_perm_parser.add_argument(
+            '--output',
+            type=str,
+            default=os.path.join(os.getcwd(), 'output'),
+            help='輸出目錄路徑 (預設: ./output)'
         )
         project_perm_parser.set_defaults(func=self._cmd_project_permission)
         
@@ -1912,6 +1930,12 @@ class GitLabCLI:
             type=int,
             help=f'群組 ID (預設: {config.TARGET_GROUP_ID})'
         )
+        user_stats_parser.add_argument(
+            '--output',
+            type=str,
+            default=os.path.join(os.getcwd(), 'output'),
+            help='輸出目錄路徑 (預設: ./output)'
+        )
         user_stats_parser.set_defaults(func=self._cmd_user_stats)
         
         # 4. user-projects 命令
@@ -1931,6 +1955,12 @@ class GitLabCLI:
             nargs='*',
             help='群組名稱 (可選，不填則取得全部；可指定多個，例如: --group-name group1 group2)'
         )
+        user_projects_parser.add_argument(
+            '--output',
+            type=str,
+            default=os.path.join(os.getcwd(), 'output'),
+            help='輸出目錄路徑 (預設: ./output)'
+        )
         user_projects_parser.set_defaults(func=self._cmd_user_projects)
         
         # 5. group-stats 命令
@@ -1943,6 +1973,12 @@ class GitLabCLI:
             type=str,
             nargs='*',
             help='群組名稱 (可選，不填則取得全部；可指定多個，例如: --group-name group1 group2)'
+        )
+        group_stats_parser.add_argument(
+            '--output',
+            type=str,
+            default=os.path.join(os.getcwd(), 'output'),
+            help='輸出目錄路徑 (預設: ./output)'
         )
         group_stats_parser.set_defaults(func=self._cmd_group_stats)
         

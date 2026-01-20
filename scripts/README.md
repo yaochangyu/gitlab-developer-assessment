@@ -6,7 +6,42 @@
 
 > 🎯 **資深 GitLab 專家級 CLI 工具** - 深度分析開發者程式碼品質與技術水平
 
-## 🆕 最新功能 (2026-01-16)
+## 🆕 最新功能 (2026-01-20)
+
+### 🎯 v1.4.0 新增：自訂輸出路徑支援
+
+**所有命令現在都支援 `--output` 參數，讓您自由控制報告輸出位置！**
+
+#### 💡 使用範例
+
+```bash
+# 1. 使用預設輸出目錄 (./output)
+uv run python gl-cli.py project-stats
+
+# 2. 指定自訂輸出目錄（絕對路徑）
+uv run python gl-cli.py project-stats --output /path/to/custom/output
+
+# 3. 使用相對路徑
+uv run python gl-cli.py user-details --username alice --output ./reports/2026-01
+
+# 4. 組合使用：多使用者分析 + 自訂輸出位置
+uv run python gl-cli.py user-details \
+  --username alice bob charlie \
+  --start-date 2024-01-01 \
+  --output ./team-reports/Q1-2024
+```
+
+#### ✨ 適用所有命令
+
+| 命令 | 支援 `--output` |
+|------|----------------|
+| `project-stats` | ✅ |
+| `project-permission` | ✅ |
+| `user-details` | ✅ |
+| `user-projects` | ✅ |
+| `group-stats` | ✅ |
+
+---
 
 ### ✨ v2.0.0 重大更新：完整開發者活動與貢獻資料分析
 
@@ -230,13 +265,193 @@ curl -LsSf https://astral.sh/uv/install.sh | sh  # macOS/Linux
 # 2. 安裝相依套件
 cd scripts && uv sync
 
-# 3. 設定 Token（編輯 config.py）
-GITLAB_URL = "https://gitlab.com"
-GITLAB_TOKEN = "your_token_here"
+# 3. 設定配置檔案
+cp config-example.py config.py    # 複製範本檔案
+nano config.py                    # 編輯配置，填入您的 Token
 
 # 開始使用
 uv run python gl-cli.py project-stats
 ```
+
+> 💡 **提示**：`config.py` 已加入 `.gitignore`，不會被提交到版本控制，保護您的 Token 安全。
+
+---
+
+## ⚙️ 配置說明 (`config.py`)
+
+### 🚀 快速設定
+
+```bash
+# 1. 複製範本檔案
+cp config-example.py config.py
+
+# 2. 編輯配置檔案
+nano config.py  # 或使用您喜歡的編輯器
+
+# 3. 至少需要設定這兩項：
+# - GITLAB_URL: 您的 GitLab 伺服器網址
+# - GITLAB_TOKEN: 您的 Personal Access Token
+```
+
+> 📄 **範本檔案**：`config-example.py` 包含所有配置選項的詳細說明和範例。
+
+### 📝 配置檔案結構
+
+```python
+# GitLab 連線設定
+GITLAB_URL = "https://gitlab.com/"        # GitLab 伺服器網址
+GITLAB_TOKEN = "your_token_here"          # GitLab Personal Access Token
+
+# 分析時間範圍
+START_DATE = "2024-01-01"                 # 開始日期 (YYYY-MM-DD)
+END_DATE = "2026-12-31"                   # 結束日期 (YYYY-MM-DD)
+
+# 可選：指定要分析的 Group 或 Project ID
+TARGET_GROUP_ID = None                    # 例如：123 (留空則分析所有可存取的群組)
+TARGET_PROJECT_IDS = []                   # 例如：[456, 789] (留空則分析所有可存取的專案)
+
+# 輸出設定
+OUTPUT_DIR = "./output"                   # 預設輸出目錄
+```
+
+### 🔑 必要配置
+
+#### 1. GitLab 伺服器網址 (`GITLAB_URL`)
+```python
+# 公開 GitLab
+GITLAB_URL = "https://gitlab.com/"
+
+# 私有 GitLab 伺服器
+GITLAB_URL = "https://192.168.1.158/"
+GITLAB_URL = "https://gitlab.yourcompany.com/"
+```
+
+#### 2. Personal Access Token (`GITLAB_TOKEN`)
+
+**如何取得 GitLab Token：**
+
+1. 登入 GitLab
+2. 前往 **Settings** → **Access Tokens**
+3. 建立新 Token，選擇以下權限：
+   - ✅ `read_api` - 讀取 API 資料
+   - ✅ `read_repository` - 讀取程式碼庫
+   - ✅ `read_user` - 讀取使用者資訊
+4. 複製 Token 並貼到 `config.py`
+
+```python
+GITLAB_TOKEN = "glpat-xxxxxxxxxxxxxxxxxxxx"  # 替換為您的實際 Token
+```
+
+> ⚠️ **安全提醒**：請勿將含有真實 Token 的 `config.py` 提交到版本控制系統！
+
+### 📅 可選配置
+
+#### 3. 分析時間範圍
+
+```python
+# 分析過去一年的資料
+START_DATE = "2024-01-01"
+END_DATE = "2024-12-31"
+
+# 分析特定季度
+START_DATE = "2024-01-01"
+END_DATE = "2024-03-31"
+
+# 分析特定月份
+START_DATE = "2024-06-01"
+END_DATE = "2024-06-30"
+```
+
+> 💡 **提示**：時間範圍會影響 `user-details` 命令的查詢結果（commits, MRs 等）。
+
+#### 4. 限定分析範圍
+
+```python
+# 只分析特定群組（例如：開發團隊群組）
+TARGET_GROUP_ID = 123
+
+# 只分析特定專案（例如：核心專案）
+TARGET_PROJECT_IDS = [456, 789, 101]
+
+# 不限定範圍（分析所有可存取的資源）
+TARGET_GROUP_ID = None
+TARGET_PROJECT_IDS = []
+```
+
+#### 5. 輸出目錄
+
+```python
+# 預設輸出到當前目錄的 output 子目錄
+OUTPUT_DIR = "./output"
+
+# 自訂輸出路徑
+OUTPUT_DIR = "/path/to/reports"
+OUTPUT_DIR = "./reports/2026-Q1"
+```
+
+> 💡 **提示**：從 v1.4.0 開始，所有命令都支援 `--output` 參數動態指定輸出路徑。
+
+### 📋 配置範例
+
+#### 範例 1：公司內部 GitLab 環境
+
+```python
+GITLAB_URL = "https://gitlab.mycompany.com/"
+GITLAB_TOKEN = "glpat-1234567890abcdef"
+START_DATE = "2024-01-01"
+END_DATE = "2024-12-31"
+TARGET_GROUP_ID = 42                      # 開發部群組
+OUTPUT_DIR = "./reports"
+```
+
+#### 範例 2：GitLab.com 開源專案分析
+
+```python
+GITLAB_URL = "https://gitlab.com/"
+GITLAB_TOKEN = "glpat-abcdef1234567890"
+START_DATE = "2024-01-01"
+END_DATE = "2024-12-31"
+TARGET_GROUP_ID = None                    # 分析所有可存取的群組
+TARGET_PROJECT_IDS = [123, 456]          # 只分析特定專案
+OUTPUT_DIR = "./output"
+```
+
+#### 範例 3：快速測試環境
+
+```python
+GITLAB_URL = "https://192.168.1.158/"
+GITLAB_TOKEN = "pxgySg3iQXrpjKpH5SU1"
+START_DATE = "2024-06-01"                # 只分析一個月的資料
+END_DATE = "2024-06-30"
+TARGET_GROUP_ID = None
+OUTPUT_DIR = "./test-output"
+```
+
+### 🔒 安全最佳實踐
+
+1. **不要提交 Token 到版本控制**
+   ```bash
+   # 將 config.py 加入 .gitignore
+   echo "config.py" >> .gitignore
+   ```
+
+2. **使用環境變數（可選）**
+   ```bash
+   export GITLAB_TOKEN="your_token_here"
+   ```
+   ```python
+   # config.py
+   import os
+   GITLAB_TOKEN = os.getenv("GITLAB_TOKEN", "fallback_token")
+   ```
+
+3. **最小權限原則**
+   - 只授予必要的 Token 權限（`read_api`, `read_repository`, `read_user`）
+   - 定期輪換 Token
+
+4. **Token 過期設定**
+   - 建議設定 Token 過期日期
+   - 過期後重新產生新 Token
 
 ---
 
@@ -1067,16 +1282,22 @@ uv run python gl-cli.py project-stats
 | 檔案 | 說明 |
 |------|------|
 | `gl-cli.py` ⭐ | 主程式（推薦使用） |
+| `config-example.py` 🆕 | 配置檔案範本（複製後編輯） |
+| `config.py` | 實際配置檔案（自行建立，已加入 .gitignore） |
 | `run-gl-cli.sh` | Linux/macOS 便捷腳本 |
 | `run-gl-cli.ps1` | Windows 便捷腳本 |
-| `config.py` | 配置檔案（需自行建立並設定 Token） |
+| `gitlab_client.py` | GitLab API 客戶端 |
+| `.gitignore` | 忽略清單（包含 config.py） |
 
 ---
 
 ## ❓ 常見問題
 
 **Q: 如何開始？**  
-A: 安裝 UV 後執行 `uv sync` 安裝依賴，設定 `config.py` 的 Token，即可開始使用。
+A: 安裝 UV 後執行 `uv sync` 安裝依賴，複製 `config-example.py` 為 `config.py` 並設定 Token，即可開始使用。
+
+**Q: 如何設定 config.py？**  
+A: 執行 `cp config-example.py config.py`，然後編輯 `config.py` 填入您的 GitLab URL 和 Token。
 
 **Q: 如何只查詢特定時間？**  
 A: 使用 `--start-date 2024-01-01 --end-date 2024-01-31`
@@ -1109,7 +1330,46 @@ A: 已在實際環境測試：
 
 ## 📝 更新歷史
 
-### v1.3.0 (2026-01-16 下午) 🆕
+### v1.4.0 (2026-01-20) 🆕
+**新增功能：自訂輸出路徑**
+- ✨ 所有命令支援 `--output` 參數 - 自訂輸出目錄路徑
+- ✨ 預設輸出路徑：執行腳本的當前目錄下的 `output` 子目錄
+- ✨ 支援相對路徑和絕對路徑
+- 🎯 實際應用：多環境輸出、報告分類管理、批次處理工作流
+
+**支援命令：**
+- ✅ `project-stats --output <path>`
+- ✅ `project-permission --output <path>`
+- ✅ `user-details --output <path>`
+- ✅ `user-projects --output <path>`
+- ✅ `group-stats --output <path>`
+
+**使用範例：**
+```bash
+# 使用預設輸出目錄 (./output)
+uv run python gl-cli.py project-stats
+
+# 指定自訂輸出目錄
+uv run python gl-cli.py project-stats --output /path/to/custom/output
+
+# 使用相對路徑
+uv run python gl-cli.py user-details --username alice --output ./reports/2026-01
+
+# 組合使用：多使用者 + 自訂輸出
+uv run python gl-cli.py user-details \
+  --username alice bob charlie \
+  --start-date 2024-01-01 \
+  --output ./team-reports
+```
+
+**技術實作：**
+- ✅ 修改 `GitLabCLI.__init__` 支援 `output_dir` 參數
+- ✅ 在 `run()` 方法中動態更新輸出目錄
+- ✅ 所有子命令解析器添加 `--output` 參數
+- ✅ 預設值使用 `os.path.join(os.getcwd(), 'output')`
+- ✅ 向下相容（不指定時使用預設路徑）
+
+### v1.3.0 (2026-01-16 下午)
 **新增功能：多筆參數支援**
 - ✨ `user-details` 支援多筆 `--username` 和 `--project-name` 參數
 - ✨ `user-projects` 支援多筆 `--username` 和 `--group-name` 參數 🆕
@@ -1176,7 +1436,7 @@ A: 已在實際環境測試：
 
 ---
 
-**版本:** 1.3.0 🆕  
-**最後更新:** 2026-01-16  
-**新增功能:** 多筆參數支援 + 使用者專案列表查詢  
+**版本:** 1.4.0 🆕  
+**最後更新:** 2026-01-20  
+**新增功能:** 自訂輸出路徑支援  
 **授權:** 僅供學習與內部使用
