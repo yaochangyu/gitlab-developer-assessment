@@ -6,14 +6,14 @@
 
 import csv
 import os
-import urllib3
-
-# 抑制 SSL 不安全連線警告（self-signed certificates）
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 from gitlab_client import GitLabClient
 from config import GITLAB_URL, GITLAB_TOKEN, OUTPUT_DIR
 from progress_reporter import print_progress
+from common_utils import disable_ssl_warnings, ensure_output_dir
+
+# 抑制 SSL 警告
+disable_ssl_warnings()
 
 
 def export_all_users():
@@ -29,8 +29,8 @@ def export_all_users():
     print(f"找到 {len(users)} 個使用者")
     
     # 準備輸出目錄
-    os.makedirs(OUTPUT_DIR, exist_ok=True)
-    output_file = os.path.join(OUTPUT_DIR, "all-users.csv")
+    output_path = ensure_output_dir(OUTPUT_DIR)
+    output_file = output_path / "all-users.csv"
     
     # 定義 CSV 欄位
     fieldnames = [

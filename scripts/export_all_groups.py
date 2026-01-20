@@ -19,17 +19,19 @@ import os
 from pathlib import Path
 import pandas as pd
 import time
-import urllib3
-
-# 抑制 SSL 不安全連線警告（self-signed certificates）
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-
-# 加入當前目錄到 Python path
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from gitlab_client import GitLabClient
 import config
 from progress_reporter import ConsoleProgressReporter
+from common_utils import (
+    disable_ssl_warnings,
+    ensure_output_dir,
+    get_timestamp,
+    export_dataframe_to_csv
+)
+
+# 抑制 SSL 警告
+disable_ssl_warnings()
 
 
 class GroupExporter:
@@ -41,8 +43,7 @@ class GroupExporter:
             private_token=config.GITLAB_TOKEN,
             ssl_verify=False
         )
-        self.output_dir = Path(output_dir)
-        self.output_dir.mkdir(parents=True, exist_ok=True)
+        self.output_dir = ensure_output_dir(output_dir)
         self.progress = ConsoleProgressReporter()
     
     def fetch_all_groups(self):
@@ -161,39 +162,51 @@ class GroupExporter:
     
     def export_to_csv(self, data: dict):
         """匯出資料到 CSV"""
-        timestamp = time.strftime("%Y%m%d_%H%M%S")
+        timestamp = get_timestamp()
         
         # 匯出群組資料
         if data['groups']:
-            df_groups = pd.DataFrame(data['groups'])
-            filename = self.output_dir / f"all-groups_{timestamp}.csv"
-            df_groups.to_csv(filename, index=False, encoding='utf-8-sig')
-            print(f"\n✅ 群組資料已匯出: {filename}")
-            print(f"   共 {len(df_groups)} 個群組")
+            filename = f"all-groups_{timestamp}"
+            csv_path = export_dataframe_to_csv(
+                pd.DataFrame(data['groups']),
+                self.output_dir,
+                filename
+            )
+            print(f"\n✅ 群組資料已匯出: {csv_path}")
+            print(f"   共 {len(data['groups'])} 個群組")
         
         # 匯出子群組資料
         if data['subgroups']:
-            df_subgroups = pd.DataFrame(data['subgroups'])
-            filename = self.output_dir / f"all-subgroups_{timestamp}.csv"
-            df_subgroups.to_csv(filename, index=False, encoding='utf-8-sig')
-            print(f"\n✅ 子群組資料已匯出: {filename}")
-            print(f"   共 {len(df_subgroups)} 個子群組")
+            filename = f"all-subgroups_{timestamp}"
+            csv_path = export_dataframe_to_csv(
+                pd.DataFrame(data['subgroups']),
+                self.output_dir,
+                filename
+            )
+            print(f"\n✅ 子群組資料已匯出: {csv_path}")
+            print(f"   共 {len(data['subgroups'])} 個子群組")
         
         # 匯出專案資料
         if data['projects']:
-            df_projects = pd.DataFrame(data['projects'])
-            filename = self.output_dir / f"all-group-projects_{timestamp}.csv"
-            df_projects.to_csv(filename, index=False, encoding='utf-8-sig')
-            print(f"\n✅ 專案資料已匯出: {filename}")
-            print(f"   共 {len(df_projects)} 個專案")
+            filename = f"all-group-projects_{timestamp}"
+            csv_path = export_dataframe_to_csv(
+                pd.DataFrame(data['projects']),
+                self.output_dir,
+                filename
+            )
+            print(f"\n✅ 專案資料已匯出: {csv_path}")
+            print(f"   共 {len(data['projects'])} 個專案")
         
         # 匯出權限資料
         if data['permissions']:
-            df_permissions = pd.DataFrame(data['permissions'])
-            filename = self.output_dir / f"all-group-permissions_{timestamp}.csv"
-            df_permissions.to_csv(filename, index=False, encoding='utf-8-sig')
-            print(f"\n✅ 權限資料已匯出: {filename}")
-            print(f"   共 {len(df_permissions)} 筆權限記錄")
+            filename = f"all-group-permissions_{timestamp}"
+            csv_path = export_dataframe_to_csv(
+                pd.DataFrame(data['permissions']),
+                self.output_dir,
+                filename
+            )
+            print(f"\n✅ 權限資料已匯出: {csv_path}")
+            print(f"   共 {len(data['permissions'])} 筆權限記錄")
         
         # 產生摘要報告
         self._generate_summary(data, timestamp)
@@ -213,10 +226,13 @@ class GroupExporter:
             access_stats = df_perm['access_level_name'].value_counts().to_dict()
             summary.update({f'{k} 數量': v for k, v in access_stats.items()})
         
-        df_summary = pd.DataFrame([summary])
-        filename = self.output_dir / f"all-groups-summary_{timestamp}.csv"
-        df_summary.to_csv(filename, index=False, encoding='utf-8-sig')
-        print(f"\n✅ 摘要報告已匯出: {filename}")
+        filename = f"all-groups-summary_{timestamp}"
+        csv_path = export_dataframe_to_csv(
+            pd.DataFrame([summary]),
+            self.output_dir,
+            filename
+        )
+        print(f"\n✅ 摘要報告已匯出: {csv_path}")
 
 
 def main():

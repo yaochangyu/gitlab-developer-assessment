@@ -15,13 +15,13 @@ from pathlib import Path
 from typing import Optional, List, Dict, Any
 from datetime import datetime
 import pandas as pd
-import urllib3
-
-# 抑制 SSL 警告
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 from gitlab_client import GitLabClient
 import config
+from common_utils import disable_ssl_warnings, ensure_output_dir, export_dataframe_to_csv
+
+# 抑制 SSL 警告
+disable_ssl_warnings()
 
 
 class UserDetailsAnalyzer:

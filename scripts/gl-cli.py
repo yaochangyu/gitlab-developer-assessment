@@ -18,17 +18,17 @@ from typing import Optional, List, Dict, Any
 from pathlib import Path
 import pandas as pd
 from datetime import datetime
-import urllib3
 from concurrent.futures import ThreadPoolExecutor, as_completed, TimeoutError as FutureTimeoutError
 import signal
 import time
 
-# 抑制 SSL 不安全連線警告（self-signed certificates）
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-
 from gitlab_client import GitLabClient
 import config
 from progress_reporter import IProgressReporter, ConsoleProgressReporter, SilentProgressReporter
+from common_utils import disable_ssl_warnings, ensure_output_dir, export_dataframe_to_csv
+
+# 抑制 SSL 警告
+disable_ssl_warnings()
 
 
 # ==================== 工具類別 ====================
