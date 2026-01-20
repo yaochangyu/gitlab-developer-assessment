@@ -19,12 +19,39 @@ import os
 from pathlib import Path
 import pandas as pd
 import time
+import urllib3
+
+# 抑制 SSL 不安全連線警告（self-signed certificates）
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 # 加入當前目錄到 Python path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from gitlab_client import GitLabClient
 import config
+
+
+class ProgressReporter:
+    """進度報告器"""
+    
+    def report_progress(self, current: int, total: int, message: str = "") -> None:
+        """報告進度"""
+        percentage = (current / total * 100) if total > 0 else 0
+        bar_length = 30
+        filled_length = int(bar_length * current // total) if total > 0 else 0
+        bar = '█' * filled_length + '░' * (bar_length - filled_length)
+        
+        progress_msg = f"  [{bar}] {current}/{total} ({percentage:.1f}%)"
+        if message:
+            progress_msg += f" - {message}"
+        
+        # 清空整行後再輸出，避免文字殘留
+        terminal_width = 120
+        padded_msg = progress_msg.ljust(terminal_width)
+        print(f"\r{padded_msg}", end='', flush=True)
+        
+        if current >= total:
+            print()  # 完成時換行
 
 
 class GroupExporter:
@@ -38,6 +65,7 @@ class GroupExporter:
         )
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
+        self.progress = ProgressReporter()
     
     def fetch_all_groups(self):
         """獲取所有群組資料"""
@@ -50,92 +78,90 @@ class GroupExporter:
         
         # 獲取所有頂層群組
         groups = self.client.get_groups()
-        print(f"✓ 找到 {len(groups)} 個群組")
+        print(f"✓ 找到 {len(groups)} 個群組\n")
         
         for idx, group in enumerate(groups, 1):
-            print(f"\n[{idx}/{len(groups)}] 處理群組: {group.get('name', 'Unknown')}")
+            group_name = getattr(group, 'name', 'Unknown')
+            self.progress.report_progress(idx, len(groups), f"處理群組: {group_name}")
             
             # 群組基本資訊
             group_info = {
-                'group_id': group.get('id'),
-                'group_name': group.get('name'),
-                'group_path': group.get('path'),
-                'group_full_path': group.get('full_path'),
-                'description': group.get('description', ''),
-                'visibility': group.get('visibility'),
-                'created_at': group.get('created_at'),
-                'web_url': group.get('web_url'),
-                'parent_id': group.get('parent_id'),
+                'group_id': getattr(group, 'id', None),
+                'group_name': getattr(group, 'name', None),
+                'group_path': getattr(group, 'path', None),
+                'group_full_path': getattr(group, 'full_path', None),
+                'description': getattr(group, 'description', ''),
+                'visibility': getattr(group, 'visibility', None),
+                'created_at': getattr(group, 'created_at', None),
+                'web_url': getattr(group, 'web_url', None),
+                'parent_id': getattr(group, 'parent_id', None),
             }
             all_groups.append(group_info)
             
             # 獲取子群組
             try:
-                subgroups = self.client.get_subgroups(group['id'])
-                print(f"  ├─ 子群組: {len(subgroups)} 個")
+                subgroups = self.client.get_group_subgroups(group.id)
                 
                 for subgroup in subgroups:
                     subgroup_info = {
-                        'parent_group_id': group['id'],
-                        'parent_group_name': group['name'],
-                        'subgroup_id': subgroup.get('id'),
-                        'subgroup_name': subgroup.get('name'),
-                        'subgroup_path': subgroup.get('path'),
-                        'subgroup_full_path': subgroup.get('full_path'),
-                        'description': subgroup.get('description', ''),
-                        'visibility': subgroup.get('visibility'),
-                        'web_url': subgroup.get('web_url'),
+                        'parent_group_id': group.id,
+                        'parent_group_name': group.name,
+                        'subgroup_id': getattr(subgroup, 'id', None),
+                        'subgroup_name': getattr(subgroup, 'name', None),
+                        'subgroup_path': getattr(subgroup, 'path', None),
+                        'subgroup_full_path': getattr(subgroup, 'full_path', None),
+                        'description': getattr(subgroup, 'description', ''),
+                        'visibility': getattr(subgroup, 'visibility', None),
+                        'web_url': getattr(subgroup, 'web_url', None),
                     }
                     all_subgroups.append(subgroup_info)
-            except Exception as e:
-                print(f"  ├─ ⚠️  無法獲取子群組: {e}")
+            except Exception:
+                pass
             
             # 獲取群組專案
             try:
-                projects = self.client.get_group_projects(group['id'])
-                print(f"  ├─ 專案: {len(projects)} 個")
+                projects = self.client.get_group_projects(group.id)
                 
                 for project in projects:
                     project_info = {
-                        'group_id': group['id'],
-                        'group_name': group['name'],
-                        'project_id': project.get('id'),
-                        'project_name': project.get('name'),
-                        'project_path': project.get('path'),
-                        'description': project.get('description', ''),
-                        'visibility': project.get('visibility'),
-                        'created_at': project.get('created_at'),
-                        'last_activity_at': project.get('last_activity_at'),
-                        'web_url': project.get('web_url'),
-                        'default_branch': project.get('default_branch'),
-                        'star_count': project.get('star_count', 0),
-                        'forks_count': project.get('forks_count', 0),
+                        'group_id': group.id,
+                        'group_name': group.name,
+                        'project_id': getattr(project, 'id', None),
+                        'project_name': getattr(project, 'name', None),
+                        'project_path': getattr(project, 'path', None),
+                        'description': getattr(project, 'description', ''),
+                        'visibility': getattr(project, 'visibility', None),
+                        'created_at': getattr(project, 'created_at', None),
+                        'last_activity_at': getattr(project, 'last_activity_at', None),
+                        'web_url': getattr(project, 'web_url', None),
+                        'default_branch': getattr(project, 'default_branch', None),
+                        'star_count': getattr(project, 'star_count', 0),
+                        'forks_count': getattr(project, 'forks_count', 0),
                     }
                     all_projects.append(project_info)
-            except Exception as e:
-                print(f"  ├─ ⚠️  無法獲取專案列表: {e}")
+            except Exception:
+                pass
             
             # 獲取群組成員權限
             try:
-                members = self.client.get_group_members(group['id'])
-                print(f"  └─ 成員: {len(members)} 位")
+                members = self.client.get_group_members(group.id)
                 
                 for member in members:
                     permission_info = {
-                        'group_id': group['id'],
-                        'group_name': group['name'],
-                        'user_id': member.get('id'),
-                        'username': member.get('username'),
-                        'name': member.get('name'),
-                        'email': member.get('email', ''),
-                        'state': member.get('state'),
-                        'access_level': member.get('access_level'),
-                        'access_level_name': self._get_access_level_name(member.get('access_level')),
-                        'expires_at': member.get('expires_at'),
+                        'group_id': group.id,
+                        'group_name': group.name,
+                        'user_id': getattr(member, 'id', None),
+                        'username': getattr(member, 'username', None),
+                        'name': getattr(member, 'name', None),
+                        'email': getattr(member, 'email', ''),
+                        'state': getattr(member, 'state', None),
+                        'access_level': getattr(member, 'access_level', None),
+                        'access_level_name': self._get_access_level_name(getattr(member, 'access_level', None)),
+                        'expires_at': getattr(member, 'expires_at', None),
                     }
                     all_permissions.append(permission_info)
-            except Exception as e:
-                print(f"  └─ ⚠️  無法獲取成員列表: {e}")
+            except Exception:
+                pass
         
         return {
             'groups': all_groups,
