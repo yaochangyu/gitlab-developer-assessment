@@ -44,20 +44,19 @@ class GroupExporter:
         self.progress = ConsoleProgressReporter()
     
     def fetch_all_groups(self):
-        """獲取所有群組資料"""
+        """獲取所有群組資料（按群組分組）"""
         print("🔍 正在獲取所有群組...")
-        
-        all_groups = []
-        all_subgroups = []
-        all_projects = []
-        all_permissions = []
         
         # 獲取所有頂層群組
         groups = self.client.get_groups()
         print(f"✓ 找到 {len(groups)} 個群組\n")
         
+        # 按群組組織資料
+        groups_data = []
+        
         for idx, group in enumerate(groups, 1):
             group_name = getattr(group, 'name', 'Unknown')
+            group_path = getattr(group, 'path', 'unknown')
             self.progress.report_progress(idx, len(groups), f"處理群組: {group_name}")
             
             # 群組基本資訊
@@ -72,7 +71,16 @@ class GroupExporter:
                 'web_url': getattr(group, 'web_url', None),
                 'parent_id': getattr(group, 'parent_id', None),
             }
-            all_groups.append(group_info)
+            
+            # 收集該群組的所有資料
+            group_data = {
+                'group_path': group_path,
+                'group_name': group_name,
+                'groups': [group_info],
+                'subgroups': [],
+                'projects': [],
+                'permissions': []
+            }
             
             # 獲取子群組
             try:
@@ -90,7 +98,7 @@ class GroupExporter:
                         'visibility': getattr(subgroup, 'visibility', None),
                         'web_url': getattr(subgroup, 'web_url', None),
                     }
-                    all_subgroups.append(subgroup_info)
+                    group_data['subgroups'].append(subgroup_info)
             except Exception:
                 pass
             
@@ -114,7 +122,7 @@ class GroupExporter:
                         'star_count': getattr(project, 'star_count', 0),
                         'forks_count': getattr(project, 'forks_count', 0),
                     }
-                    all_projects.append(project_info)
+                    group_data['projects'].append(project_info)
             except Exception:
                 pass
             
@@ -135,91 +143,103 @@ class GroupExporter:
                         'access_level_name': AccessLevelMapper.get_level_name(getattr(member, 'access_level', None)),
                         'expires_at': getattr(member, 'expires_at', None),
                     }
-                    all_permissions.append(permission_info)
+                    group_data['permissions'].append(permission_info)
             except Exception:
                 pass
+            
+            groups_data.append(group_data)
         
-        return {
-            'groups': all_groups,
-            'subgroups': all_subgroups,
-            'projects': all_projects,
-            'permissions': all_permissions
-        }
+        return groups_data
     
 
-    def export_to_csv(self, data: dict):
-        """匯出資料到 CSV"""
-        timestamp = get_timestamp()
+    def export_to_csv(self, groups_data: list):
+        """匯出資料到 CSV（每個群組獨立目錄）"""
+        total_groups = len(groups_data)
+        total_subgroups = 0
+        total_projects = 0
+        total_permissions = 0
         
-        # 匯出群組資料
-        if data['groups']:
-            filename = f"all-groups_{timestamp}"
-            csv_path = export_dataframe_to_csv(
-                pd.DataFrame(data['groups']),
-                self.output_dir,
-                filename
-            )
-            print(f"\n✅ 群組資料已匯出: {csv_path}")
-            print(f"   共 {len(data['groups'])} 個群組")
+        for idx, group_data in enumerate(groups_data, 1):
+            group_path = group_data['group_path']
+            group_name = group_data['group_name']
+            
+            print(f"\n[{idx}/{total_groups}] 匯出群組: {group_name}")
+            
+            # 建立群組專屬目錄
+            group_dir = Path(self.output_dir) / group_path
+            group_dir.mkdir(parents=True, exist_ok=True)
+            
+            # 匯出群組資料
+            if group_data['groups']:
+                csv_path = export_dataframe_to_csv(
+                    pd.DataFrame(group_data['groups']),
+                    str(group_dir),
+                    'groups'
+                )
+                print(f"  ✓ groups.csv")
+            
+            # 匯出子群組資料
+            if group_data['subgroups']:
+                csv_path = export_dataframe_to_csv(
+                    pd.DataFrame(group_data['subgroups']),
+                    str(group_dir),
+                    'subgroups'
+                )
+                print(f"  ✓ subgroups.csv ({len(group_data['subgroups'])} 筆)")
+                total_subgroups += len(group_data['subgroups'])
+            
+            # 匯出專案資料
+            if group_data['projects']:
+                csv_path = export_dataframe_to_csv(
+                    pd.DataFrame(group_data['projects']),
+                    str(group_dir),
+                    'projects'
+                )
+                print(f"  ✓ projects.csv ({len(group_data['projects'])} 筆)")
+                total_projects += len(group_data['projects'])
+            
+            # 匯出權限資料
+            if group_data['permissions']:
+                csv_path = export_dataframe_to_csv(
+                    pd.DataFrame(group_data['permissions']),
+                    str(group_dir),
+                    'permissions'
+                )
+                print(f"  ✓ permissions.csv ({len(group_data['permissions'])} 筆)")
+                total_permissions += len(group_data['permissions'])
+            
+            # 產生該群組的摘要報告
+            self._generate_group_summary(group_data, group_dir)
         
-        # 匯出子群組資料
-        if data['subgroups']:
-            filename = f"all-subgroups_{timestamp}"
-            csv_path = export_dataframe_to_csv(
-                pd.DataFrame(data['subgroups']),
-                self.output_dir,
-                filename
-            )
-            print(f"\n✅ 子群組資料已匯出: {csv_path}")
-            print(f"   共 {len(data['subgroups'])} 個子群組")
-        
-        # 匯出專案資料
-        if data['projects']:
-            filename = f"all-group-projects_{timestamp}"
-            csv_path = export_dataframe_to_csv(
-                pd.DataFrame(data['projects']),
-                self.output_dir,
-                filename
-            )
-            print(f"\n✅ 專案資料已匯出: {csv_path}")
-            print(f"   共 {len(data['projects'])} 個專案")
-        
-        # 匯出權限資料
-        if data['permissions']:
-            filename = f"all-group-permissions_{timestamp}"
-            csv_path = export_dataframe_to_csv(
-                pd.DataFrame(data['permissions']),
-                self.output_dir,
-                filename
-            )
-            print(f"\n✅ 權限資料已匯出: {csv_path}")
-            print(f"   共 {len(data['permissions'])} 筆權限記錄")
-        
-        # 產生摘要報告
-        self._generate_summary(data, timestamp)
+        # 產生全域摘要
+        print(f"\n" + "=" * 70)
+        print(f"✅ 匯出完成")
+        print(f"   共 {total_groups} 個群組")
+        print(f"   共 {total_subgroups} 個子群組")
+        print(f"   共 {total_projects} 個專案")
+        print(f"   共 {total_permissions} 筆權限記錄")
     
-    def _generate_summary(self, data: dict, timestamp: str):
-        """產生摘要報告"""
+    def _generate_group_summary(self, group_data: dict, group_dir: Path):
+        """產生群組摘要報告"""
         summary = {
-            '總群組數': len(data['groups']),
-            '總子群組數': len(data['subgroups']),
-            '總專案數': len(data['projects']),
-            '總權限記錄數': len(data['permissions']),
+            '群組名稱': group_data['group_name'],
+            '子群組數': len(group_data['subgroups']),
+            '專案數': len(group_data['projects']),
+            '權限記錄數': len(group_data['permissions']),
         }
         
         # 計算各權限等級統計
-        if data['permissions']:
-            df_perm = pd.DataFrame(data['permissions'])
+        if group_data['permissions']:
+            df_perm = pd.DataFrame(group_data['permissions'])
             access_stats = df_perm['access_level_name'].value_counts().to_dict()
             summary.update({f'{k} 數量': v for k, v in access_stats.items()})
         
-        filename = f"all-groups-summary_{timestamp}"
         csv_path = export_dataframe_to_csv(
             pd.DataFrame([summary]),
-            self.output_dir,
-            filename
+            str(group_dir),
+            'summary'
         )
-        print(f"\n✅ 摘要報告已匯出: {csv_path}")
+        print(f"  ✓ summary.csv")
 
 
 def main():

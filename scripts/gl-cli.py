@@ -1225,16 +1225,28 @@ class DataExporter(IDataExporter):
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
     
-    def export(self, df: pd.DataFrame, filename: str) -> None:
-        """匯出資料到 CSV"""
+    def export(self, df: pd.DataFrame, filename: str, subdir: Optional[str] = None) -> None:
+        """
+        匯出資料到 CSV
+        
+        Args:
+            df: 要匯出的 DataFrame
+            filename: 檔案名稱（不含副檔名）
+            subdir: 子目錄名稱（可選）
+        """
         if df.empty:
             print(f"Warning: No data to export for {filename}")
             return
         
+        # 決定輸出目錄
+        if subdir:
+            output_path = self.output_dir / subdir
+            output_path.mkdir(parents=True, exist_ok=True)
+        else:
+            output_path = self.output_dir
+        
         # 匯出 CSV
-        csv_path = self.output_dir / f"{filename}.csv"
-        # 使用 export_dataframe_to_csv 統一匯出方式
-        export_dataframe_to_csv(df, output_dir, base_filename)
+        csv_path = export_dataframe_to_csv(df, str(output_path), filename)
         print(f"✓ CSV exported: {csv_path}")
 
 
@@ -1780,33 +1792,37 @@ class GroupStatsService(BaseService):
         # 處理資料
         processed_data = self.processor.process(group_data)
         
-        # 決定檔名
-        if group_name:
-            base_filename = f"{group_name}-group-stats"
-        else:
-            base_filename = "all-groups-stats"
+        # 取得群組路徑作為子目錄名稱
+        # 從第一筆群組資料中取得 group_path
+        group_path = None
+        if not processed_data['groups'].empty:
+            group_path = processed_data['groups'].iloc[0].get('group_path', None)
+        
+        # 如果沒有 group_path，使用 group_name
+        if not group_path and group_name:
+            group_path = group_name
+        
+        # 建立兩層目錄結構：groups/{group_path}/
+        subdir = f"groups/{group_path}" if group_path else "groups"
         
         # 匯出群組資料
         if not processed_data['groups'].empty:
-            self.exporter.export(processed_data['groups'], base_filename)
+            self.exporter.export(processed_data['groups'], 'groups', subdir=subdir)
             print(f"\n✓ Total groups: {len(processed_data['groups'])}")
         
         # 匯出子群組資料
         if not processed_data['subgroups'].empty:
-            subgroups_filename = f"{base_filename}-subgroups"
-            self.exporter.export(processed_data['subgroups'], subgroups_filename)
+            self.exporter.export(processed_data['subgroups'], 'subgroups', subdir=subdir)
             print(f"✓ Total subgroups: {len(processed_data['subgroups'])}")
         
         # 匯出專案資料
         if not processed_data['projects'].empty:
-            projects_filename = f"{base_filename}-projects"
-            self.exporter.export(processed_data['projects'], projects_filename)
+            self.exporter.export(processed_data['projects'], 'projects', subdir=subdir)
             print(f"✓ Total projects: {len(processed_data['projects'])}")
         
         # 匯出授權資料
         if not processed_data['permissions'].empty:
-            permissions_filename = f"{base_filename}-permissions"
-            self.exporter.export(processed_data['permissions'], permissions_filename)
+            self.exporter.export(processed_data['permissions'], 'permissions', subdir=subdir)
             print(f"✓ Total permission records: {len(processed_data['permissions'])}")
         
         elapsed_time = time.time() - start_time
