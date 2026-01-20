@@ -17,7 +17,7 @@ GitLab 開發者評估與分析專家，透過 `gl-cli.py` 工具深度分析開
 
 2. **資料收集與分析** (詳見 [gl-cli.py 完整操作手冊](../../../scripts/README.md))
    - 使用 `gl-cli.py user-details` 取得開發者詳細資訊（commits, code changes, MRs, reviews）
-   - **⚠️ 必須先讀取** `scripts/output/users/<username>/<username>-index.md` **了解資料概況**
+   - **⚠️ 必須先讀取** `.\scripts\output\users\{username}\{username}-index.md` **了解資料概況**
    - 使用 `gl-cli.py user-projects` 取得開發者專案列表
    - 使用 `gl-cli.py project-stats` 取得專案詳細資訊
    - 使用 `gl-cli.py group-stats` 取得群組資訊（團隊分析）
@@ -32,7 +32,7 @@ GitLab 開發者評估與分析專家，透過 `gl-cli.py` 工具深度分析開
 
 4. **報告產生**
    - 產生結構化評估報告（markdown 格式）
-   - **必須儲存為** `scripts/output/users/<username>/analysis-result.md`
+   - **必須儲存為** `.\scripts\output\users\{username}\analysis-result.md`
    - 提供視覺化圖表建議（若需要）
    - 給予改善建議與學習方向
 
@@ -55,10 +55,10 @@ python3 gl-cli.py user-details \
   --output <輸出目錄>  # 選填，預設為 ./output
 
 # 輸出檔案結構：
-# output/                             # 預設輸出目錄（可透過 --output 參數自訂）
-# ├── users/                          # 開發者資料目錄
-# │   └── <username>/                 # 每位開發者獨立目錄
-# │       ├── <username>-index.md     # 索引檔案（資料摘要與檔案清單）
+# .\scripts\output\                   # 預設輸出目錄（可透過 --output 參數自訂）
+# ├── users\                          # 開發者資料目錄
+# │   └── {username}\                 # 每位開發者獨立目錄
+# │       ├── {username}-index.md     # 索引檔案（資料摘要與檔案清單）
 # │       ├── user_profile.csv        # 使用者基本資料 (30+ 欄位)
 # │       ├── user_events.csv         # 活動事件追蹤
 # │       ├── commits.csv             # Commit 詳細記錄
@@ -68,22 +68,22 @@ python3 gl-cli.py user-details \
 # │       ├── contributors.csv        # 專案貢獻者統計
 # │       ├── permissions.csv         # 專案授權資訊
 # │       └── statistics.csv          # 統計摘要 (多項指標)
-# ├── groups/                         # 群組資料目錄
-# │   └── <groupname>/
+# ├── groups\                         # 群組資料目錄
+# │   └── {groupname}\
 # │       ├── groups.csv              # 群組資訊
 # │       ├── subgroups.csv           # 子群組列表
 # │       ├── projects.csv            # 專案列表
 # │       ├── permissions.csv         # 成員權限
 # │       └── summary.csv             # 群組摘要
-# └── projects/                       # 專案資料目錄
-#     └── <projectname>/
+# └── projects\                       # 專案資料目錄
+#     └── {projectname}\
 #         ├── project.csv             # 專案資訊
 #         └── permissions.csv         # 專案權限
 # 
 # 📌 CSV 檔案編碼：UTF-8 with BOM (utf-8-sig)，Excel 可直接開啟
 # 
 # 範例：分析開發者 G2023018 在 "新求才WebVue" 專案
-# → 輸出路徑：output/users/G2023018/commits.csv
+# → 輸出路徑：.\scripts\output\users\G2023018\commits.csv
 
 # 取得使用者專案列表
 python3 gl-cli.py user-projects \
@@ -205,10 +205,10 @@ cp scripts/config-example.py scripts/config.py
    **方法 2：讀取既有的匯出檔案**
    ```bash
    # 列出所有使用者匯出檔案（檔名格式：all-users_*.csv）
-   ls -lh scripts/output/all-users_*.csv
+   ls -lh .\scripts\output\all-users_*.csv
    
    # 讀取最新的使用者列表
-   cat scripts/output/all-users_*.csv | head -20
+   cat .\scripts\output\all-users_*.csv | head -20
    ```
    
    > 💡 **提示**：兩種方法擇一使用即可
@@ -237,7 +237,7 @@ cp scripts/config-example.py scripts/config.py
    
    # 步驟 A：檢查索引檔案是否存在
    # 路徑格式：.\scripts\output\users\{username}\{username}-index.md
-   INDEX_FILE="output/users/<username>/<username>-index.md"
+   INDEX_FILE=".\scripts\output\users\<username>\<username>-index.md"
    
    if [ -f "$INDEX_FILE" ]; then
      echo "✅ 索引檔案已存在：$INDEX_FILE"
@@ -263,7 +263,7 @@ cp scripts/config-example.py scripts/config.py
    
    # 檢查哪些使用者缺少索引檔案
    for user in "${USERS[@]}"; do
-     if [ ! -f "output/users/$user/$user-index.md" ]; then
+     if [ ! -f ".\scripts\output\users\$user\$user-index.md" ]; then
        echo "❌ $user: 索引檔案不存在"
        MISSING_USERS+=("$user")
      else
@@ -295,10 +295,10 @@ cp scripts/config-example.py scripts/config.py
    ```
 
 5. **讀取並解析輸出檔案**
-   - 所有 CSV 檔案輸出到 `scripts/output/users/<username>/` 目錄
+   - 所有 CSV 檔案輸出到 `.\scripts\output\users\{username}\` 目錄
    - CSV 使用 UTF-8 BOM 編碼 (utf-8-sig)，Excel 可直接開啟
    - 使用 bash + pandas 工具讀取並分析 CSV 檔案
-   - 參考自動產生的 `output/users/<username>/<username>-index.md` 檔案了解檔案清單與資料摘要
+   - 參考自動產生的 `.\scripts\output\users\{username}\{username}-index.md` 檔案了解檔案清單與資料摘要
 
 ### 第 2.5 步：讀取索引檔案（必要步驟）
 
@@ -311,7 +311,7 @@ cp scripts/config-example.py scripts/config.py
 
 ```bash
 # 1. 檢查索引檔案是否存在（路徑格式：.\scripts\output\users\{username}\{username}-index.md）
-INDEX_FILE="scripts/output/users/<username>/<username>-index.md"
+INDEX_FILE=".\scripts\output\users\<username>\<username>-index.md"
 
 if [ -f "$INDEX_FILE" ]; then
   echo "✅ 索引檔案存在，繼續分析流程"
@@ -339,7 +339,7 @@ cat "$INDEX_FILE"
 **範例**：
 ```bash
 # 範例：讀取開發者 G2023018 的索引檔案
-cat scripts/output/users/G2023018/G2023018-index.md
+cat .\scripts\output\users\G2023018\G2023018-index.md
 
 # 輸出範例：
 # # 使用者分析報告索引
@@ -518,19 +518,19 @@ cat scripts/output/users/G2023018/G2023018-index.md
 ```bash
 # 將上述 Markdown 報告儲存到指定位置
 # 路徑格式：.\scripts\output\users\{username}\analysis-result.md
-cat > scripts/output/users/<username>/analysis-result.md << 'EOF'
+cat > .\scripts\output\users\<username>\analysis-result.md << 'EOF'
 [將上述報告內容貼上]
 EOF
 
 # 確認檔案已成功建立
-ls -lh scripts/output/users/<username>/analysis-result.md
+ls -lh .\scripts\output\users\<username>\analysis-result.md
 ```
 
 **範例**：
 ```bash
 # 為開發者 john.doe 產生分析報告
 # 輸出路徑：.\scripts\output\users\john.doe\analysis-result.md
-cat > scripts/output/users/john.doe/analysis-result.md << 'EOF'
+cat > .\scripts\output\users\john.doe\analysis-result.md << 'EOF'
 # GitLab Developer Assessment Report
 
 ## 📊 基本資訊
@@ -539,7 +539,7 @@ cat > scripts/output/users/john.doe/analysis-result.md << 'EOF'
 ...
 EOF
 
-# 輸出：scripts/output/users/john.doe/analysis-result.md (25KB)
+# 輸出：.\scripts\output\users\john.doe\analysis-result.md (25KB)
 ```
 
 ### 第 5 步：後續行動建議
@@ -593,7 +593,7 @@ EOF
 ## 最佳實踐
 
 1. **資料保護**
-   - 輸出檔案預設儲存在 `scripts/output/`，可透過 `--output` 自訂
+   - 輸出檔案預設儲存在 `.\scripts\output\`，可透過 `--output` 自訂
    - 不在報告中包含敏感資訊（email、token）
    - 分析完成後詢問是否刪除暫存檔案
 
@@ -609,8 +609,8 @@ EOF
    - 提供具體數據支持評分
    - 避免主觀判斷，基於客觀指標
    - 給予建設性改善建議
-   - 善用自動產生的 `<username>-index.md` 檔案快速了解資料概況
-   - **必須將報告儲存為** `scripts/output/users/<username>/analysis-result.md`
+   - 善用自動產生的 `{username}-index.md` 檔案快速了解資料概況
+   - **必須將報告儲存為** `.\scripts\output\users\{username}\analysis-result.md`
 
 4. **使用者體驗**
    - 清晰的互動提示
