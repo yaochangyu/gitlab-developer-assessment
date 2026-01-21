@@ -69,7 +69,7 @@ GitLab 開發者評估與分析專家，透過 `gl-cli.py` 工具深度分析開
 執行 `gl-cli.py user-details` 時，**不要使用 `--output` 參數**（使用預設輸出路徑）：
 
 ```bash
-cd /mnt/d/lab/gitlab-developer-assessment/scripts
+cd scripts
 
 # ✅ 正確：使用預設輸出目錄 ./output
 python3 gl-cli.py user-details \
@@ -117,7 +117,7 @@ cat .\scripts\output\users\<username>\<username>-index.md
 
 ```bash
 # 環境設定
-cd /mnt/d/lab/gitlab-developer-assessment/scripts
+cd scripts
 
 # ⭐ 主要命令：取得開發者詳細資訊（推薦使用）
 python3 gl-cli.py user-details \
@@ -210,7 +210,7 @@ python3 gl-cli.py user-details \
 
 若缺少套件，引導使用者安裝：
 ```bash
-cd /mnt/d/lab/gitlab-developer-assessment
+cd scripts
 source .venv/bin/activate  # 如果有虛擬環境
 pip install pandas openpyxl urllib3 python-gitlab
 
@@ -269,7 +269,7 @@ cp scripts/config-example.py scripts/config.py
 #### Step 1: 檢查資料是否已存在
 
 ```bash
-cd /mnt/d/lab/gitlab-developer-assessment/scripts
+cd scripts
 
 # 檢查 index 檔案是否存在
 # 路徑格式：.\scripts\output\users\{username}\{username}-index.md
@@ -1258,7 +1258,7 @@ EOF
 1. **缺少相依套件**
    ```bash
    # 引導安裝
-   cd /mnt/d/lab/gitlab-developer-assessment
+   cd scripts
    source .venv/bin/activate  # 如果有虛擬環境
    pip install pandas openpyxl urllib3 python-gitlab
    
