@@ -13,6 +13,7 @@ GitLab CLI - 開發者程式碼品質與技術水平分析工具
 import argparse
 import sys
 import os
+import re
 from abc import ABC, abstractmethod
 from typing import Optional, List, Dict, Any
 from pathlib import Path
@@ -2503,6 +2504,110 @@ class GitLabCLI:
             
             service.execute(group_name=group_name)
     
+    def _parse_analysis_result(self, file_path: Path) -> Optional[Dict[str, str]]:
+        """解析單個 analysis-result.md 檔案並提取關鍵資訊"""
+        try:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                content = f.read()
+            
+            # 提取 username（從標題）
+            username_match = re.search(r'^#\s+(.+?)\s+技術水平分析報告', content, re.MULTILINE)
+            if not username_match:
+                return None
+            username = username_match.group(1)
+            
+            # 如果報告包含錯誤訊息，跳過
+            if '❌' in content or '⚠️ 錯誤：' in content:
+                return None
+            
+            # 提取各維度評分（從表格）
+            dimensions = {
+                '程式碼貢獻量': 'N/A',
+                '技術廣度': 'N/A',
+                '協作能力': 'N/A',
+                'Code Review 品質': 'N/A',
+                '工作模式': 'N/A',
+                '進步趨勢': 'N/A'
+            }
+            
+            # 使用正則表達式從表格中提取評分
+            for dim_name in dimensions.keys():
+                # 匹配表格行：| 維度名稱 | 分數 / 10 | ...
+                pattern = rf'\|\s*\*?\*?{re.escape(dim_name)}\*?\*?\s*\|\s*\*?\*?(\d+(?:\.\d+)?)\s*/\s*10'
+                match = re.search(pattern, content)
+                if match:
+                    dimensions[dim_name] = match.group(1)
+            
+            # 計算相對路徑
+            relative_path = str(file_path.relative_to(Path(self.output_dir)))
+            
+            return {
+                'username': username,
+                '程式碼貢獻量': dimensions['程式碼貢獻量'],
+                '技術廣度': dimensions['技術廣度'],
+                '協作能力': dimensions['協作能力'],
+                'Code Review 品質': dimensions['Code Review 品質'],
+                '工作模式': dimensions['工作模式'],
+                '進步趨勢': dimensions['進步趨勢'],
+                '參考檔案': relative_path
+            }
+        except Exception as e:
+            print(f"⚠️ 警告：無法解析 {file_path}: {e}")
+            return None
+    
+    def _generate_all_user_summary(self):
+        """彙整所有開發者的分析結果成一份 markdown 表格"""
+        users_dir = Path(self.output_dir) / 'users'
+        
+        if not users_dir.exists():
+            print("⚠️ 找不到 users 目錄")
+            return
+        
+        # 查找所有 analysis-result.md 檔案
+        analysis_files = list(users_dir.glob('*/analysis-result.md'))
+        
+        if not analysis_files:
+            print("⚠️ 找不到任何 analysis-result.md 檔案")
+            return
+        
+        # 解析所有檔案
+        results = []
+        for file_path in analysis_files:
+            parsed = self._parse_analysis_result(file_path)
+            if parsed:
+                results.append(parsed)
+        
+        if not results:
+            print("⚠️ 沒有有效的分析結果可以彙整")
+            return
+        
+        # 產生 markdown 表格
+        output_path = users_dir / 'all-user-analysis-result.md'
+        
+        with open(output_path, 'w', encoding='utf-8') as f:
+            # 寫入標題
+            f.write("# 所有開發者技術水平分析彙總\n\n")
+            f.write(f"**生成時間：** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}  \n")
+            f.write(f"**分析人數：** {len(results)}\n\n")
+            f.write("---\n\n")
+            
+            # 寫入表格標題
+            f.write("| Username | 程式碼貢獻量 | 技術廣度 | 協作能力 | Code Review 品質 | 工作模式 | 進步趨勢 | 參考檔案 |\n")
+            f.write("|----------|------------|---------|---------|----------------|---------|---------|----------|\n")
+            
+            # 寫入每一行資料
+            for result in sorted(results, key=lambda x: x['username']):
+                f.write(f"| {result['username']} ")
+                f.write(f"| {result['程式碼貢獻量']} ")
+                f.write(f"| {result['技術廣度']} ")
+                f.write(f"| {result['協作能力']} ")
+                f.write(f"| {result['Code Review 品質']} ")
+                f.write(f"| {result['工作模式']} ")
+                f.write(f"| {result['進步趨勢']} ")
+                f.write(f"| [{result['username']}]({result['參考檔案']}) |\n")
+        
+        print(f"✅ 彙總報告已儲存：{output_path}")
+    
     def _cmd_analysis_user_details(self, args):
         """執行開發者技術水平分析命令"""
         # 處理多筆使用者名稱
@@ -2539,6 +2644,13 @@ class GitLabCLI:
                 username=username,
                 spec_file=spec_file
             )
+        
+        # 彙整所有分析結果
+        print(f"\n{'='*70}")
+        print("正在彙整所有開發者分析結果...")
+        print(f"{'='*70}")
+        self._generate_all_user_summary()
+        print("✅ 彙總報告已完成")
 
 
 def main():

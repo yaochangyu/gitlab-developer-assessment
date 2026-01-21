@@ -1006,8 +1006,8 @@ class UserAnalysisService:
             "",
             "## 📊 整體評分總覽",
             "",
-            "| 使用者名稱 | 總分 | 等級 | 程式碼貢獻量 | Commit 品質 | 技術廣度 | 協作能力 | Code Review 品質 | 工作模式 | 進步趨勢 |",
-            "|-----------|------|------|-------------|------------|---------|---------|-----------------|---------|---------|"
+            "| username | 程式碼貢獻量 | 技術廣度 | 協作能力 | Code Review 品質 | 工作模式 | 進步趨勢 |",
+            "|----------|-------------|---------|---------|-----------------|---------|---------|"
         ]
         
         # 排序：按總分降序
@@ -1019,20 +1019,12 @@ class UserAnalysisService:
         
         for result in sorted_results:
             username = result['username']
-            total_score = result['total_score']
-            level = result['level']
             scores = result['scores']
             
-            # 格式化等級（移除 emoji 保持簡潔）
-            level_text = level.replace('🏆 ', '').replace('⭐ ', '').replace('🌱 ', '')
-            
-            # 建立表格行
+            # 建立表格行（僅包含需要的欄位）
             row = (
                 f"| {username} "
-                f"| {total_score:.2f} "
-                f"| {level_text} "
                 f"| {scores['contribution']:.2f} "
-                f"| {scores['commit_quality']:.2f} "
                 f"| {scores['tech_breadth']:.2f} "
                 f"| {scores['collaboration']:.2f} "
                 f"| {scores['code_review']:.2f} "
