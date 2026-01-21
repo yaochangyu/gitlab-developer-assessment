@@ -973,8 +973,8 @@ class UserAnalysisService:
             
             print(f"✅ 報告已儲存：{output_path}")
             
-            # 收集評分資料（僅 CodeBasedAnalyzer 有 scores 屬性）
-            if isinstance(self.analyzer, CodeBasedAnalyzer):
+            # 收集評分資料（僅 CodeBasedAnalyzer 有 scores 屬性且 scores 不為空）
+            if isinstance(self.analyzer, CodeBasedAnalyzer) and self.analyzer.scores:
                 self.analysis_results.append({
                     'username': user_dir.name,
                     'total_score': self.analyzer.total_score,
@@ -1006,8 +1006,8 @@ class UserAnalysisService:
             "",
             "## 📊 整體評分總覽",
             "",
-            "| username | 程式碼貢獻量 | 技術廣度 | 協作能力 | Code Review 品質 | 工作模式 | 進步趨勢 |",
-            "|----------|-------------|---------|---------|-----------------|---------|---------|"
+            "| username | 程式碼貢獻量 | Commit 品質 | 技術廣度 | 協作能力 | Code Review | 工作模式 | 進步趨勢 |",
+            "|----------|-------------|-----------|---------|---------|------------|---------|---------|"
         ]
         
         # 排序：按總分降序
@@ -1025,6 +1025,7 @@ class UserAnalysisService:
             row = (
                 f"| {username} "
                 f"| {scores['contribution']:.2f} "
+                f"| {scores['commit_quality']:.2f} "
                 f"| {scores['tech_breadth']:.2f} "
                 f"| {scores['collaboration']:.2f} "
                 f"| {scores['code_review']:.2f} "
