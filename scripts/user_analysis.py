@@ -99,6 +99,8 @@ class CodeBasedAnalyzer(IUserAnalyzer):
         self.data_loader: Optional[UserDataLoader] = None
         self.data: Dict[str, pd.DataFrame] = {}
         self.scores: Dict[str, float] = {}
+        self.total_score: float = 0.0
+        self.level: str = ""
     
     def analyze(self, user_data_dir: Path, spec_file: Optional[Path] = None) -> str:
         """執行分析"""
@@ -125,6 +127,10 @@ class CodeBasedAnalyzer(IUserAnalyzer):
         # 計算總分
         total_score = self._calculate_total_score()
         level = self._determine_level(total_score)
+        
+        # 儲存總分和等級（供彙總報告使用）
+        self.total_score = total_score
+        self.level = level
         
         # 產生報告
         report = self._generate_markdown_report(total_score, level)
@@ -929,6 +935,7 @@ class UserAnalysisService:
         self.data_source = data_source
         self.output_dir = output_dir
         self.progress = progress_reporter or SilentProgressReporter()
+        self.analysis_results: List[Dict[str, Any]] = []  # 收集分析結果
     
     def execute(
         self,
@@ -946,6 +953,9 @@ class UserAnalysisService:
         total = len(user_dirs)
         self.progress.report_start(f"開始分析 {total} 位使用者...")
         
+        # 清空之前的結果
+        self.analysis_results = []
+        
         for i, user_dir in enumerate(user_dirs, 1):
             print(f"\n{'='*70}")
             print(f"[{i}/{total}] 分析：{user_dir.name}")
@@ -962,8 +972,176 @@ class UserAnalysisService:
                 f.write(report)
             
             print(f"✅ 報告已儲存：{output_path}")
+            
+            # 收集評分資料（僅 CodeBasedAnalyzer 有 scores 屬性）
+            if isinstance(self.analyzer, CodeBasedAnalyzer):
+                self.analysis_results.append({
+                    'username': user_dir.name,
+                    'total_score': self.analyzer.total_score,
+                    'level': self.analyzer.level,
+                    'scores': self.analyzer.scores.copy()
+                })
         
         self.progress.report_complete(f"完成 {total} 位使用者分析")
+        
+        # 產生彙總報告
+        if len(self.analysis_results) > 0:
+            self._generate_summary_report()
+    
+    def _generate_summary_report(self) -> None:
+        """產生所有使用者的彙總報告"""
+        print(f"\n{'='*70}")
+        print("正在產生彙總報告...")
+        print(f"{'='*70}")
+        
+        # 產生 Markdown 表格
+        report_lines = [
+            "# 開發者技術水平分析彙總報告",
+            "",
+            f"**生成時間：** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}  ",
+            f"**分析人數：** {len(self.analysis_results)} 位開發者  ",
+            f"**分析方式：** 程式碼計算（Code-Based Analysis）",
+            "",
+            "---",
+            "",
+            "## 📊 整體評分總覽",
+            "",
+            "| 使用者名稱 | 總分 | 等級 | 程式碼貢獻量 | Commit 品質 | 技術廣度 | 協作能力 | Code Review 品質 | 工作模式 | 進步趨勢 |",
+            "|-----------|------|------|-------------|------------|---------|---------|-----------------|---------|---------|"
+        ]
+        
+        # 排序：按總分降序
+        sorted_results = sorted(
+            self.analysis_results, 
+            key=lambda x: x['total_score'], 
+            reverse=True
+        )
+        
+        for result in sorted_results:
+            username = result['username']
+            total_score = result['total_score']
+            level = result['level']
+            scores = result['scores']
+            
+            # 格式化等級（移除 emoji 保持簡潔）
+            level_text = level.replace('🏆 ', '').replace('⭐ ', '').replace('🌱 ', '')
+            
+            # 建立表格行
+            row = (
+                f"| {username} "
+                f"| {total_score:.2f} "
+                f"| {level_text} "
+                f"| {scores['contribution']:.2f} "
+                f"| {scores['commit_quality']:.2f} "
+                f"| {scores['tech_breadth']:.2f} "
+                f"| {scores['collaboration']:.2f} "
+                f"| {scores['code_review']:.2f} "
+                f"| {scores['work_pattern']:.2f} "
+                f"| {scores['progress_trend']:.2f} |"
+            )
+            report_lines.append(row)
+        
+        # 新增統計資訊
+        report_lines.extend([
+            "",
+            "---",
+            "",
+            "## 📈 統計資訊",
+            ""
+        ])
+        
+        # 計算各等級人數
+        level_counts = {}
+        total_scores = []
+        for result in self.analysis_results:
+            level = result['level']
+            level_counts[level] = level_counts.get(level, 0) + 1
+            total_scores.append(result['total_score'])
+        
+        # 等級分佈
+        report_lines.append("### 等級分佈")
+        report_lines.append("")
+        for level, count in sorted(level_counts.items(), key=lambda x: x[1], reverse=True):
+            percentage = count / len(self.analysis_results) * 100
+            report_lines.append(f"- **{level}**：{count} 位 ({percentage:.1f}%)")
+        
+        # 分數統計
+        if total_scores:
+            avg_score = sum(total_scores) / len(total_scores)
+            max_score = max(total_scores)
+            min_score = min(total_scores)
+            
+            report_lines.extend([
+                "",
+                "### 分數統計",
+                "",
+                f"- **平均分：** {avg_score:.2f}",
+                f"- **最高分：** {max_score:.2f}",
+                f"- **最低分：** {min_score:.2f}",
+            ])
+        
+        # 各維度平均分
+        dimension_names = {
+            'contribution': '程式碼貢獻量',
+            'commit_quality': 'Commit 品質',
+            'tech_breadth': '技術廣度',
+            'collaboration': '協作能力',
+            'code_review': 'Code Review 品質',
+            'work_pattern': '工作模式',
+            'progress_trend': '進步趨勢'
+        }
+        
+        dimension_avgs = {}
+        for dim_key in dimension_names.keys():
+            scores = [r['scores'][dim_key] for r in self.analysis_results]
+            dimension_avgs[dim_key] = sum(scores) / len(scores)
+        
+        report_lines.extend([
+            "",
+            "### 各維度平均分",
+            ""
+        ])
+        
+        for dim_key, dim_name in dimension_names.items():
+            avg = dimension_avgs[dim_key]
+            report_lines.append(f"- **{dim_name}**：{avg:.2f}")
+        
+        # 新增說明
+        report_lines.extend([
+            "",
+            "---",
+            "",
+            "## 📝 評分說明",
+            "",
+            "**等級標準：**",
+            "- 🏆 **高級工程師** (8-10分)：Message 規範率 90%+、小型變更佔比 80%+、涉及 3+ 技術棧",
+            "- ⭐ **中級工程師** (5-7分)：Message 規範率 60-90%、變更粒度合理、2-3 種技術棧",
+            "- 🌱 **初級工程師** (1-4分)：Message 不規範、大量修復性提交、單一技術棧",
+            "",
+            "**維度權重：**",
+            "- Commit 品質：23% ⭐ 最重要",
+            "- 技術廣度：18%",
+            "- 進步趨勢：15%",
+            "- 程式碼貢獻量：12%",
+            "- 協作能力：12%",
+            "- Code Review 品質：10%",
+            "- 工作模式：10%",
+            "",
+            "---",
+            "",
+            "**分析工具版本：** v1.0  ",
+            "**評分標準：** 基於 code-quality-analysis-spec.md"
+        ])
+        
+        # 儲存彙總報告
+        summary_path = self.output_dir / 'users' / 'all-user-analysis-result.md'
+        summary_path.parent.mkdir(parents=True, exist_ok=True)
+        
+        with open(summary_path, 'w', encoding='utf-8') as f:
+            f.write('\n'.join(report_lines))
+        
+        print(f"✅ 彙總報告已儲存：{summary_path}")
+        print(f"   共分析 {len(self.analysis_results)} 位開發者")
     
     def _find_user_directories(self, username: Optional[str]) -> List[Path]:
         """尋找使用者資料目錄"""
