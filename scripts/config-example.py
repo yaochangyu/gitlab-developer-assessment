@@ -45,6 +45,18 @@ TARGET_PROJECT_IDS = []
 # 預設輸出目錄（可透過 --output 參數覆寫）
 OUTPUT_DIR = "./output"
 
+# ==================== GitHub Models API 設定 ====================
+
+# GitHub Models API Key（用於開發者技術水平 AI 分析）
+# 如何取得：https://github.com/settings/tokens → Generate new token (classic)
+GITHUB_MODELS_API_KEY = ""  # ⚠️ 請替換為您的 GitHub Models API Key
+
+# GitHub Models API 端點
+GITHUB_MODELS_API_URL = "https://models.github.com/v1/chat/completions"
+
+# 使用的模型（可選：gpt-4o, gpt-4o-mini, gpt-4-turbo, gpt-3.5-turbo）
+GITHUB_MODELS_MODEL = "gpt-4o"
+
 # ==================== 配置範例 ====================
 
 # 範例 1：公司內部 GitLab

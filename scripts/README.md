@@ -6,7 +6,57 @@
 
 > 🎯 **資深 GitLab 專家級 CLI 工具** - 深度分析開發者程式碼品質與技術水平
 
-## 🆕 最新功能 (2026-01-20)
+## 🆕 最新功能 (2026-01-21)
+
+### 🚀 v1.6.0 新增功能
+
+#### 🎯 開發者技術水平分析 (`analysis-user-details`) 🆕
+
+**基於 Git 版控資料，客觀評估開發者技術水平！**
+
+**兩種分析方式：**
+- ⚡ **方案 B (code)**：程式碼計算評分（快速、離線、免費）
+- 🤖 **方案 A (ai)**：AI 模型分析（深入、靈活，需 GitHub Models API Key）
+
+**7 大評估維度：**
+```
+Commit 品質 (23%) + 技術廣度 (18%) + 進步趨勢 (15%) + 
+程式碼貢獻量 (12%) + 協作能力 (12%) + 
+Code Review 品質 (10%) + 工作模式 (10%) = 100%
+```
+
+**快速體驗：**
+```bash
+# 分析單一開發者（方案 B）
+uv run python gl-cli.py analysis-user-details --username alice
+
+# 使用 AI 分析（方案 A）
+uv run python gl-cli.py analysis-user-details --username alice --method ai
+
+# 批次分析多位開發者
+uv run python gl-cli.py analysis-user-details --username alice bob charlie
+```
+
+**輸出範例：**
+```
+總分：8.26 / 10
+等級：🏆 高級工程師
+
+各維度評分：
+- Commit 品質：6.40/10 (23%) = 1.47
+- 技術廣度：10.00/10 (18%) = 1.80
+- ...
+```
+
+**實際用途：**
+- 🎯 績效評估 - 客觀評估開發者技術水平
+- 📊 團隊分析 - 了解團隊技術能力分佈
+- 👥 人才盤點 - 識別高潛力人才
+- 📈 進步追蹤 - 追蹤開發者成長趨勢
+
+詳細說明請參考 [功能說明 6️⃣](#6️⃣-開發者技術水平分析-analysis-user-details-🆕)
+
+---
 
 ### 🚀 v1.5.0 新增功能
 
@@ -960,6 +1010,57 @@ uv run python gl-cli.py user-projects --username alice bob --group-name "group1"
 
 ---
 
+### 6️⃣ 開發者技術水平分析 (`analysis-user-details`) 🆕
+
+基於 Git 版控資料，客觀評估開發者技術水平，支援兩種分析方式。
+
+```bash
+# 方案 B（預設）：程式碼計算評分
+uv run python gl-cli.py analysis-user-details --username alice
+
+# 方案 A：AI 模型分析（需要 GitHub Models API Key）
+uv run python gl-cli.py analysis-user-details --username alice --method ai
+
+# 批次分析多位開發者
+uv run python gl-cli.py analysis-user-details --username alice bob charlie
+
+# 分析所有開發者
+uv run python gl-cli.py analysis-user-details
+```
+
+**功能說明：**
+1. 從 `./output/users/{username}/` 讀取分析所需的 CSV 檔案
+2. 支援兩種分析方式：**code**（程式碼計算）、**ai**（AI 模型分析）
+3. 7 大維度全面評估，自動產生 Markdown 分析報告
+
+**評分維度：**
+
+| 維度 | 權重 | 關鍵指標 |
+|------|------|----------|
+| **Commit 品質** | **23%** | Message 規範性、變更粒度、修復率 ⭐ |
+| 技術廣度 | 18% | 語言種類、技術棧覆蓋 |
+| 進步趨勢 | 15% | 成長曲線、技能提升 |
+| 程式碼貢獻量 | 12% | 提交次數、活躍度 |
+| 協作能力 | 12% | Merge Commits、Revert 率 |
+| Code Review 品質 | 10% | Review 參與度、深度 |
+| 工作模式 | 10% | 時間分佈、穩定性 |
+
+**分級標準：**
+- 🏆 **高級工程師** (8-10分)：Message 規範率 90%+、小型變更佔比 80%+
+- ⭐ **中級工程師** (5-7分)：Message 規範率 60-90%、變更粒度合理
+- 🌱 **初級工程師** (1-4分)：Message 不規範、大量修復性提交
+
+**實際用途：**
+- 🎯 **績效評估** - 客觀評估開發者技術水平
+- 📊 **團隊分析** - 了解團隊技術能力分佈
+- 👥 **人才盤點** - 識別高潛力人才
+- 📈 **進步追蹤** - 追蹤開發者成長趨勢
+
+**輸出檔案：**
+- `./output/users/{username}/analysis-result.md` - 技術水平分析報告
+
+---
+
 ## 🛠️ 便捷腳本（推薦）
 
 ### 快速匯出所有群組 🆕
@@ -1645,7 +1746,22 @@ A: 已在實際環境測試：
 
 ## 📝 更新歷史
 
-### v1.4.0 (2026-01-20) 🆕
+### v1.6.0 (2026-01-21) 🆕
+
+**新增功能：開發者技術水平分析**
+- ✨ 新增 `analysis-user-details` 命令 - 基於 Git 版控資料評估開發者技術水平
+- ✨ 支援兩種分析方式：
+  - **方案 B (code)**：程式碼計算評分（快速、離線、免費）
+  - **方案 A (ai)**：AI 模型分析（深入、靈活，需 API Key）
+- ✨ 7 大評估維度：Commit 品質 (23%)、技術廣度 (18%)、進步趨勢 (15%)、程式碼貢獻量 (12%)、協作能力 (12%)、Code Review 品質 (10%)、工作模式 (10%)
+- ✨ 自動產生 Markdown 格式的詳細分析報告
+- ✨ 支援批次分析多位開發者
+- ✨ 分級標準：高級工程師 (8-10)、中級工程師 (5-7)、初級工程師 (1-4)
+- 📖 新增 `user_analysis.py` 模組
+- 📖 config.py 新增 GitHub Models API 設定項
+- 🎯 實際應用：績效評估、團隊分析、人才盤點、進步追蹤
+
+### v1.5.0 (2026-01-20) 🆕
 
 **新增功能 1：一鍵匯出所有群組**
 - ✨ 新增 `export_all_groups.py` 獨立腳本

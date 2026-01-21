@@ -27,6 +27,7 @@ import config
 from progress_reporter import IProgressReporter, ConsoleProgressReporter, SilentProgressReporter
 from common_utils import disable_ssl_warnings, ensure_output_dir, export_dataframe_to_csv
 from export_utils import AccessLevelMapper, create_default_client
+from user_analysis import UserAnalysisService, CodeBasedAnalyzer, AIModelAnalyzer
 
 # 抑制 SSL 警告
 disable_ssl_warnings()
@@ -2020,6 +2021,28 @@ class GitLabCLI:
         processor = GroupDataProcessor()
         return GroupStatsService(fetcher, processor, self.exporter)
     
+    def create_user_analysis_service(
+        self, 
+        method: str = 'code',
+        data_source: Optional[str] = None
+    ) -> UserAnalysisService:
+        """建立開發者分析服務"""
+        # 選擇分析器
+        if method == 'ai':
+            analyzer = AIModelAnalyzer(self.progress)
+        else:  # code
+            analyzer = CodeBasedAnalyzer(self.progress)
+        
+        # 設定資料來源
+        source_path = Path(data_source) if data_source else Path(self.output_dir) / 'users'
+        
+        return UserAnalysisService(
+            analyzer=analyzer,
+            data_source=source_path,
+            output_dir=Path(self.output_dir),
+            progress_reporter=self.progress
+        )
+    
     def run(self):
         """執行 CLI"""
         parser = self._create_parser()
@@ -2249,6 +2272,42 @@ class GitLabCLI:
         )
         group_stats_parser.set_defaults(func=self._cmd_group_stats)
         
+        # 6. analysis-user-details 命令
+        analysis_parser = subparsers.add_parser(
+            'analysis-user-details',
+            help='分析開發者技術水平'
+        )
+        analysis_parser.add_argument(
+            '--username',
+            type=str,
+            nargs='*',
+            help='使用者名稱 (可選，不填則分析全部；可指定多個，例如: --username alice bob)'
+        )
+        analysis_parser.add_argument(
+            '--data-source',
+            type=str,
+            help='資料來源路徑 (預設: ./output/users/)'
+        )
+        analysis_parser.add_argument(
+            '--method',
+            type=str,
+            choices=['code', 'ai'],
+            default='code',
+            help='分析方式: code=程式碼計算(預設), ai=AI模型分析'
+        )
+        analysis_parser.add_argument(
+            '--spec-file',
+            type=str,
+            help='分析規格檔案路徑 (預設: code-quality-analysis-spec.md)'
+        )
+        analysis_parser.add_argument(
+            '--output',
+            type=str,
+            default=os.path.join(os.getcwd(), 'output'),
+            help='輸出目錄路徑 (預設: ./output)'
+        )
+        analysis_parser.set_defaults(func=self._cmd_analysis_user_details)
+        
         return parser
     
     def _cmd_project_stats(self, args):
@@ -2443,6 +2502,43 @@ class GitLabCLI:
                 print(f"{'='*70}")
             
             service.execute(group_name=group_name)
+    
+    def _cmd_analysis_user_details(self, args):
+        """執行開發者技術水平分析命令"""
+        # 處理多筆使用者名稱
+        usernames = args.username if args.username else [None]
+        
+        # 如果是空列表，設為 [None] 表示分析全部
+        if not usernames:
+            usernames = [None]
+        
+        # 建立分析服務
+        service = self.create_user_analysis_service(
+            method=args.method,
+            data_source=args.data_source
+        )
+        
+        # 準備 spec 檔案路徑
+        spec_file = Path(args.spec_file) if args.spec_file else None
+        
+        total_users = len(usernames)
+        current = 0
+        
+        for username in usernames:
+            current += 1
+            if total_users > 1:
+                print(f"\n{'='*70}")
+                print(f"分析 {current}/{total_users}: ", end="")
+                if username:
+                    print(f"使用者={username}")
+                else:
+                    print("所有使用者")
+                print(f"{'='*70}")
+            
+            service.execute(
+                username=username,
+                spec_file=spec_file
+            )
 
 
 def main():
