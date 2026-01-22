@@ -81,17 +81,21 @@ class ProjectDataFetcher(IDataFetcher):
     
     def fetch(self, project_name: Optional[str] = None, 
               group_id: Optional[int] = None,
-              include_permissions: bool = True) -> Dict[str, Any]:
+              include_permissions: bool = True,
+              start_date: Optional[str] = None,
+              end_date: Optional[str] = None) -> Dict[str, Any]:
         """
-        獲取專案資料（包含授權資訊）
+        獲取專案資料（包含授權資訊、分支和 commits）
         
         Args:
             project_name: 專案名稱 (可選)
             group_id: 群組 ID (可選)
             include_permissions: 是否包含授權資訊 (預設: True)
+            start_date: 開始日期 (可選)
+            end_date: 結束日期 (可選)
         
         Returns:
-            包含專案列表和授權資訊的字典
+            包含專案列表、授權資訊、分支和 commits 的字典
         """
         self.progress.report_start("正在獲取專案列表...")
         projects = self.client.get_projects(group_id=group_id, search=project_name)
@@ -99,7 +103,9 @@ class ProjectDataFetcher(IDataFetcher):
         
         result = {
             'projects': projects,
-            'permissions': []
+            'permissions': [],
+            'branches': [],
+            'commits': []
         }
         
         # 如果需要包含授權資訊
@@ -147,6 +153,67 @@ class ProjectDataFetcher(IDataFetcher):
                 except Exception as e:
                     self.progress.report_warning(f"無法獲取 {project.name} 的授權資訊: {e}")
                     continue
+        
+        # 獲取分支和 commits 資料
+        if projects and (start_date or end_date):
+            self.progress.report_start("正在獲取分支和 commits 資料...")
+            for idx, project in enumerate(projects, 1):
+                try:
+                    self.progress.report_progress(idx, len(projects), project.name)
+                    
+                    # 獲取專案的所有分支
+                    branches = self.client.get_project(project.id).branches.list(all=True)
+                    
+                    for branch in branches:
+                        result['branches'].append({
+                            'project_id': project.id,
+                            'project_name': project.name,
+                            'project_path': getattr(project, 'path_with_namespace', project.name),
+                            'branch_name': branch.name,
+                            'protected': branch.protected,
+                            'default': branch.default,
+                            'commit_id': branch.commit['id'],
+                            'commit_short_id': branch.commit['short_id'],
+                            'commit_message': branch.commit.get('message', ''),
+                            'commit_author_name': branch.commit.get('author_name', ''),
+                            'commit_author_email': branch.commit.get('author_email', ''),
+                            'commit_created_at': branch.commit.get('created_at', ''),
+                            'web_url': getattr(branch, 'web_url', '')
+                        })
+                        
+                        # 獲取該分支的 commits（依日期範圍過濾）
+                        try:
+                            commits = self.client.get_project_commits(
+                                project.id,
+                                ref_name=branch.name,
+                                since=start_date,
+                                until=end_date
+                            )
+                            
+                            for commit in commits:
+                                result['commits'].append({
+                                    'project_id': project.id,
+                                    'project_name': project.name,
+                                    'project_path': getattr(project, 'path_with_namespace', project.name),
+                                    'branch_name': branch.name,
+                                    'commit_id': commit.id,
+                                    'commit_short_id': commit.short_id,
+                                    'author_name': commit.author_name,
+                                    'author_email': commit.author_email,
+                                    'committed_date': commit.committed_date,
+                                    'title': commit.title,
+                                    'message': commit.message,
+                                    'web_url': getattr(commit, 'web_url', '')
+                                })
+                        except Exception as e:
+                            self.progress.report_warning(f"無法獲取分支 {branch.name} 的 commits: {e}")
+                            continue
+                    
+                except Exception as e:
+                    self.progress.report_warning(f"無法獲取 {project.name} 的分支資訊: {e}")
+                    continue
+            
+            self.progress.report_complete(f"找到 {len(result['branches'])} 個分支，{len(result['commits'])} 個 commits")
         
         return result
 
@@ -944,16 +1011,18 @@ class ProjectDataProcessor(IDataProcessor):
     
     def process(self, data: Dict[str, Any]) -> Dict[str, pd.DataFrame]:
         """
-        處理專案資料和授權資訊
+        處理專案資料、授權資訊、分支和 commits
         
         Args:
-            data: 包含 'projects' 和 'permissions' 的字典
+            data: 包含 'projects'、'permissions'、'branches' 和 'commits' 的字典
         
         Returns:
-            包含 'projects' 和 'permissions' DataFrame 的字典
+            包含 'projects'、'permissions'、'branches' 和 'commits' DataFrame 的字典
         """
         projects = data.get('projects', [])
         permissions = data.get('permissions', [])
+        branches = data.get('branches', [])
+        commits = data.get('commits', [])
         
         result = {}
         
@@ -1004,6 +1073,18 @@ class ProjectDataProcessor(IDataProcessor):
             result['permissions'] = pd.DataFrame(permissions)
         else:
             result['permissions'] = pd.DataFrame()
+        
+        # 處理分支資料
+        if branches:
+            result['branches'] = pd.DataFrame(branches)
+        else:
+            result['branches'] = pd.DataFrame()
+        
+        # 處理 commits 資料
+        if commits:
+            result['commits'] = pd.DataFrame(commits)
+        else:
+            result['commits'] = pd.DataFrame()
         
         return result
 
@@ -1319,7 +1400,8 @@ class BaseService(ABC):
 class ProjectStatsService(BaseService):
     """專案統計服務（包含授權資訊）"""
     
-    def execute(self, project_name: Optional[str] = None, group_id: Optional[int] = None) -> None:
+    def execute(self, project_name: Optional[str] = None, group_id: Optional[int] = None,
+                start_date: Optional[str] = None, end_date: Optional[str] = None) -> None:
         """執行專案統計"""
         start_time = time.time()
         
@@ -1328,7 +1410,8 @@ class ProjectStatsService(BaseService):
         print("=" * 70)
         
         # 獲取資料（包含授權資訊）
-        data = self.fetcher.fetch(project_name=project_name, group_id=group_id)
+        data = self.fetcher.fetch(project_name=project_name, group_id=group_id,
+                                  start_date=start_date, end_date=end_date)
         
         if not data['projects']:
             print("No projects found.")
@@ -1357,6 +1440,16 @@ class ProjectStatsService(BaseService):
         if not processed_data['permissions'].empty:
             self.exporter.export(processed_data['permissions'], 'permissions', subdir=subdir)
             print(f"\n✓ Total permission records: {len(processed_data['permissions'])}")
+        
+        # 匯出分支資料
+        if not processed_data['branches'].empty:
+            self.exporter.export(processed_data['branches'], 'branches', subdir=subdir)
+            print(f"✓ Total branches: {len(processed_data['branches'])}")
+        
+        # 匯出 commits 資料
+        if not processed_data['commits'].empty:
+            self.exporter.export(processed_data['commits'], 'commits', subdir=subdir)
+            print(f"✓ Total commits: {len(processed_data['commits'])}")
         
         print(f"✓ Total projects: {len(processed_data['projects'])}")
         
@@ -2163,6 +2256,16 @@ class GitLabCLI:
             default=os.path.join(os.getcwd(), 'output'),
             help='輸出目錄路徑 (預設: ./output)'
         )
+        project_stats_parser.add_argument(
+            '--start-date',
+            type=str,
+            help='開始日期 (格式: YYYY-MM-DD)'
+        )
+        project_stats_parser.add_argument(
+            '--end-date',
+            type=str,
+            help='結束日期 (格式: YYYY-MM-DD)'
+        )
         project_stats_parser.set_defaults(func=self._cmd_project_stats)
         
         # 2. project-permission 命令
@@ -2338,7 +2441,9 @@ class GitLabCLI:
             
             service.execute(
                 project_name=project_name,
-                group_id=args.group_id or config.TARGET_GROUP_ID
+                group_id=args.group_id or config.TARGET_GROUP_ID,
+                start_date=args.start_date,
+                end_date=args.end_date
             )
     
     def _cmd_project_permission(self, args):
