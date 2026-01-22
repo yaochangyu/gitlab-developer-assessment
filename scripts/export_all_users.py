@@ -31,9 +31,9 @@ def export_all_users(output_dir: str = "./output"):
     client = create_default_client()
     progress = ConsoleProgressReporter()
     
-    # 取得所有使用者
+    # 取得所有使用者（包含 email）
     print("正在取得所有使用者...")
-    users = client.get_all_users()
+    users = client.get_all_users(with_email=True)
     print(f"找到 {len(users)} 個使用者")
     
     # 準備輸出目錄
@@ -53,6 +53,7 @@ def export_all_users(output_dir: str = "./output"):
                 'username': user.username,
                 'name': user.name,
                 'email': getattr(user, 'email', ''),
+                'public_email': getattr(user, 'public_email', ''),
                 'state': getattr(user, 'state', ''),
                 'locked': getattr(user, 'locked', False),
                 'is_admin': getattr(user, 'is_admin', False),

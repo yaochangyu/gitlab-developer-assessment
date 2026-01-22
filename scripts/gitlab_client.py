@@ -225,14 +225,31 @@ class GitLabClient:
     
     # ==================== 使用者操作 ====================
     
-    def get_all_users(self) -> List[Any]:
+    def get_all_users(self, with_email: bool = False) -> List[Any]:
         """
         取得所有使用者
+        
+        Args:
+            with_email: 是否取得 email（需要逐一查詢每個使用者）
         
         Returns:
             使用者物件列表
         """
-        return self.gl.users.list(all=True)
+        users = self.gl.users.list(all=True)
+        
+        if with_email:
+            # 逐一取得使用者詳細資料（包含 email）
+            detailed_users = []
+            for user in users:
+                try:
+                    detailed_user = self.gl.users.get(user.id)
+                    detailed_users.append(detailed_user)
+                except Exception as e:
+                    print(f"⚠️  無法取得使用者 {user.username} 的詳細資料: {e}")
+                    detailed_users.append(user)
+            return detailed_users
+        
+        return users
     
     # ==================== 群組操作 ====================
     
