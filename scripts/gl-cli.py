@@ -108,112 +108,120 @@ class ProjectDataFetcher(IDataFetcher):
             'commits': []
         }
         
-        # 如果需要包含授權資訊
-        if include_permissions and projects:
-            self.progress.report_start("正在獲取授權資訊...")
-            for idx, project in enumerate(projects, 1):
-                try:
-                    self.progress.report_progress(idx, len(projects), project.name)
-                    project_detail = self.client.get_project(project.id)
-                    
-                    # 獲取專案成員
-                    members = project_detail.members.list(all=True)
-                    
-                    for member in members:
-                        result['permissions'].append({
-                            'project_id': project.id,
-                            'project_name': project.name,
-                            'member_type': 'User',
-                            'member_id': member.id,
-                            'member_name': member.name,
-                            'member_username': member.username,
-                            'member_email': getattr(member, 'email', ''),
-                            'access_level': member.access_level,
-                            'access_level_name': AccessLevelMapper.get_level_name(member.access_level)
-                        })
-                    
-                    # 獲取群組成員（如果有共享給群組）
+        # 統一處理每個專案（避免重複獲取 project detail）
+        if projects:
+            # 決定是否需要獲取詳細資料
+            need_permissions = include_permissions
+            need_branches = (start_date or end_date)
+            
+            if need_permissions or need_branches:
+                if need_permissions:
+                    self.progress.report_start("正在獲取專案詳細資料（權限、分支、commits）...")
+                else:
+                    self.progress.report_start("正在獲取分支和 commits 資料...")
+                
+                for idx, project in enumerate(projects, 1):
                     try:
-                        shared_groups = project_detail.shared_with_groups
-                        for group in shared_groups:
-                            result['permissions'].append({
-                                'project_id': project.id,
-                                'project_name': project.name,
-                                'member_type': 'Group',
-                                'member_id': group['group_id'],
-                                'member_name': group['group_name'],
-                                'member_username': '',
-                                'member_email': '',
-                                'access_level': group['group_access_level'],
-                                'access_level_name': AccessLevelMapper.get_level_name(group['group_access_level'])
-                            })
-                    except:
-                        pass
+                        self.progress.report_progress(idx, len(projects), project.name)
                         
-                except Exception as e:
-                    self.progress.report_warning(f"無法獲取 {project.name} 的授權資訊: {e}")
-                    continue
-        
-        # 獲取分支和 commits 資料
-        if projects and (start_date or end_date):
-            self.progress.report_start("正在獲取分支和 commits 資料...")
-            for idx, project in enumerate(projects, 1):
-                try:
-                    self.progress.report_progress(idx, len(projects), project.name)
-                    
-                    # 獲取專案的所有分支
-                    branches = self.client.get_project(project.id).branches.list(all=True)
-                    
-                    for branch in branches:
-                        result['branches'].append({
-                            'project_id': project.id,
-                            'project_name': project.name,
-                            'project_path': getattr(project, 'path_with_namespace', project.name),
-                            'branch_name': branch.name,
-                            'protected': branch.protected,
-                            'default': branch.default,
-                            'commit_id': branch.commit['id'],
-                            'commit_short_id': branch.commit['short_id'],
-                            'commit_message': branch.commit.get('message', ''),
-                            'commit_author_name': branch.commit.get('author_name', ''),
-                            'commit_author_email': branch.commit.get('author_email', ''),
-                            'commit_created_at': branch.commit.get('created_at', ''),
-                            'web_url': getattr(branch, 'web_url', '')
-                        })
+                        # 只呼叫一次 get_project，取得詳細資料
+                        project_detail = self.client.get_project(project.id)
                         
-                        # 獲取該分支的 commits（依日期範圍過濾）
-                        try:
-                            commits = self.client.get_project_commits(
-                                project.id,
-                                ref_name=branch.name,
-                                since=start_date,
-                                until=end_date
-                            )
+                        # 獲取授權資訊（如果需要）
+                        if need_permissions:
+                            # 獲取專案成員
+                            members = project_detail.members.list(all=True)
                             
-                            for commit in commits:
-                                result['commits'].append({
+                            for member in members:
+                                result['permissions'].append({
+                                    'project_id': project.id,
+                                    'project_name': project.name,
+                                    'member_type': 'User',
+                                    'member_id': member.id,
+                                    'member_name': member.name,
+                                    'member_username': member.username,
+                                    'member_email': getattr(member, 'email', ''),
+                                    'access_level': member.access_level,
+                                    'access_level_name': AccessLevelMapper.get_level_name(member.access_level)
+                                })
+                            
+                            # 獲取群組成員（如果有共享給群組）
+                            try:
+                                shared_groups = project_detail.shared_with_groups
+                                for group in shared_groups:
+                                    result['permissions'].append({
+                                        'project_id': project.id,
+                                        'project_name': project.name,
+                                        'member_type': 'Group',
+                                        'member_id': group['group_id'],
+                                        'member_name': group['group_name'],
+                                        'member_username': '',
+                                        'member_email': '',
+                                        'access_level': group['group_access_level'],
+                                        'access_level_name': AccessLevelMapper.get_level_name(group['group_access_level'])
+                                    })
+                            except:
+                                pass
+                        
+                        # 獲取分支和 commits 資料（如果需要）
+                        if need_branches:
+                            # 獲取專案的所有分支
+                            branches = project_detail.branches.list(all=True)
+                            
+                            for branch in branches:
+                                result['branches'].append({
                                     'project_id': project.id,
                                     'project_name': project.name,
                                     'project_path': getattr(project, 'path_with_namespace', project.name),
                                     'branch_name': branch.name,
-                                    'commit_id': commit.id,
-                                    'commit_short_id': commit.short_id,
-                                    'author_name': commit.author_name,
-                                    'author_email': commit.author_email,
-                                    'committed_date': commit.committed_date,
-                                    'title': commit.title,
-                                    'message': commit.message,
-                                    'web_url': getattr(commit, 'web_url', '')
+                                    'protected': branch.protected,
+                                    'default': branch.default,
+                                    'commit_id': branch.commit['id'],
+                                    'commit_short_id': branch.commit['short_id'],
+                                    'commit_message': branch.commit.get('message', ''),
+                                    'commit_author_name': branch.commit.get('author_name', ''),
+                                    'commit_author_email': branch.commit.get('author_email', ''),
+                                    'commit_created_at': branch.commit.get('created_at', ''),
+                                    'web_url': getattr(branch, 'web_url', '')
                                 })
-                        except Exception as e:
-                            self.progress.report_warning(f"無法獲取分支 {branch.name} 的 commits: {e}")
-                            continue
-                    
-                except Exception as e:
-                    self.progress.report_warning(f"無法獲取 {project.name} 的分支資訊: {e}")
-                    continue
-            
-            self.progress.report_complete(f"找到 {len(result['branches'])} 個分支，{len(result['commits'])} 個 commits")
+                                
+                                # 獲取該分支的 commits（依日期範圍過濾）
+                                try:
+                                    commits = self.client.get_project_commits(
+                                        project.id,
+                                        ref_name=branch.name,
+                                        since=start_date,
+                                        until=end_date
+                                    )
+                                    
+                                    for commit in commits:
+                                        result['commits'].append({
+                                            'project_id': project.id,
+                                            'project_name': project.name,
+                                            'project_path': getattr(project, 'path_with_namespace', project.name),
+                                            'branch_name': branch.name,
+                                            'commit_id': commit.id,
+                                            'commit_short_id': commit.short_id,
+                                            'author_name': commit.author_name,
+                                            'author_email': commit.author_email,
+                                            'committed_date': commit.committed_date,
+                                            'title': commit.title,
+                                            'message': commit.message,
+                                            'web_url': getattr(commit, 'web_url', '')
+                                        })
+                                except Exception as e:
+                                    self.progress.report_warning(f"無法獲取分支 {branch.name} 的 commits: {e}")
+                                    continue
+                            
+                    except Exception as e:
+                        self.progress.report_warning(f"無法獲取 {project.name} 的詳細資訊: {e}")
+                        continue
+                
+                # 完成訊息
+                if need_branches:
+                    self.progress.report_complete(f"找到 {len(result['branches'])} 個分支，{len(result['commits'])} 個 commits")
+                else:
+                    self.progress.report_complete(f"完成")
         
         return result
 
